@@ -3,7 +3,6 @@ from xml.etree import ElementTree
 
 from jpeg4py import JPEG
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 
 from bf.utils import dataset_utils, xml_utils
@@ -82,11 +81,7 @@ class Voc(Dataset):
 
     @staticmethod
     def collate(batch):
-        imgs, targets = zip(*batch)
-        imgs = torch.stack(imgs, dim=0)
-        targets = list(targets)
-
-        return imgs, targets
+        return dataset_utils.collate_detections(batch)
 
     def display(self, index):
         dataset_utils.display(*self[index])

@@ -4,7 +4,6 @@ import os
 
 from jpeg4py import JPEG
 import numpy as np
-import torch
 from torch.utils.data import Dataset
 
 from bf.utils import dataset_utils
@@ -45,7 +44,7 @@ class Coco(Dataset):
 
         folder = 'val' if val else 'train'
         annotations = os.path.join(root, f'annotations/instances_{folder}{year}.json')
-        self.img_dir = os.path.join(root, f'{folder}{year}')
+        img_dir = os.path.join(root, f'{folder}{year}')
 
         with open(annotations, 'r') as f:
             print(f'===> Loading {annotations}')
@@ -58,10 +57,10 @@ class Coco(Dataset):
 
         for a in annotations['annotations']:
             image = images[a['image_id']]
-            self.annotations[a['image_id']]['boxes'].append(a['bbox'] + [categories[a['category_id']]])
-            self.annotations[a['image_id']]['file_name'] = image['file_name']
-            self.annotations[a['image_id']]['height'] = image['height']
+            self.annotations[a['image_id']]['image_path'] = os.path.join(img_dir, image['file_name'])
             self.annotations[a['image_id']]['width'] = image['width']
+            self.annotations[a['image_id']]['height'] = image['height']
+            self.annotations[a['image_id']]['boxes'].append(a['bbox'] + [categories[a['category_id']]])
         self.annotations = list(self.annotations.values())
 
         # if not with_crowd:
@@ -74,8 +73,7 @@ class Coco(Dataset):
 
     def __getitem__(self, index):
         annotation = self.annotations[index]
-        img_path = os.path.join(self.img_dir, annotation['file_name'])
-        img = JPEG(img_path).decode()
+        img = JPEG(annotation['image_path']).decode()
         target = annotation['boxes'].copy()
 
         if self.augment:
@@ -92,11 +90,7 @@ class Coco(Dataset):
 
     @staticmethod
     def collate(batch):
-        imgs, targets = zip(*batch)
-        imgs = torch.stack(imgs, dim=0)
-        targets = list(targets)
-
-        return imgs, targets
+        return dataset_utils.collate_detections(batch)
 
     def _fix_boxes(self):
         for a in self.annotations:

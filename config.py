@@ -52,7 +52,7 @@ augmentations = [
     {'name': 'ToFloat'},
     {'name': 'RandomAdjustBrightness', 'args': {'max_brightness_delta': .15}},
     {'name': 'RandomAdjustContrast', 'args': {'contrast_delta_range': (.5, 1.5)}},
-    {'name': 'RandomExpand'},
+    {'name': 'RandomExpand', 'args': {'aspect_ratio_range': (0.5, 2.0), 'area_range': (1.0, 16.0)}},
     {
         'name': 'OneOf',
         'args': {

@@ -3,9 +3,14 @@ import string
 from .misc_utils import try_int
 
 
-class ConfigFormatter(object):
-    def __init__(self, context):
-        self.context = context
+class ObjectFormatter(object):
+    def __init__(self, obj):
+        self.obj = obj
+        self.context = vars(obj)
+
+    def update_context(self, ctx):
+        self.context.update(ctx)
+        self.format_obj()
 
     def _format_str(self, attr):
         parsed = [x[1] for x in string.Formatter().parse(attr)]
@@ -43,7 +48,8 @@ class ConfigFormatter(object):
                 l[i] = self._format_list(x)
         return l
 
-    def format_obj(self, obj):
+    def format_obj(self):
+        obj = self.obj
         for attr_name in dir(obj):
             if attr_name.startswith('__'):
                 continue

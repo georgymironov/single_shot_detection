@@ -20,3 +20,9 @@ def display(img, target):
 
     skimage.io.imshow(img)
     skimage.io.show()
+
+def collate_detections(batch):
+    imgs, targets = zip(*batch)
+    imgs = torch.stack(imgs, dim=0)
+    targets = list(targets)
+    return imgs, targets

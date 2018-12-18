@@ -1,7 +1,7 @@
 import torch
 
 from bf.utils import box_utils
-from detection.matcher import match_bipartite, match_per_prediction
+from detection.matcher import match_per_prediction
 
 
 class TargetAssigner(object):
@@ -31,16 +31,14 @@ class TargetAssigner(object):
         for i, gt in enumerate(ground_truth):
             weights = box_utils.jaccard(gt[:, :4], corner_priors)
 
-            box_idx, prior_idx = match_bipartite(weights, inplace=False)
-            weights[..., prior_idx] = 0
-            target_classes[i, prior_idx] = gt[box_idx, 4].long()
-            target_locs[i, prior_idx] = gt[box_idx, :4]
+            box_idx = match_per_prediction(weights,
+                                           matched_threshold=self.matched_threshold,
+                                           unmatched_threshold=self.unmatched_threshold)
+            matched = box_idx >= 0
+            target_classes[i, matched] = gt[box_idx[matched], 4].long()
+            target_locs[i, matched] = gt[box_idx[matched], :4]
 
-            box_idx, prior_idx = match_per_prediction(weights, threshold=self.matched_threshold)
-            target_classes[i, prior_idx] = gt[box_idx, 4].long()
-            target_locs[i, prior_idx] = gt[box_idx, :4]
-
-            ingored = torch.any(weights.gt(self.unmatched_threshold) & weights.lt(self.matched_threshold), dim=0)
+            ingored = box_idx == -1
             target_classes[i, ingored] = -1
 
         target_locs = box_utils.to_centroids(target_locs)

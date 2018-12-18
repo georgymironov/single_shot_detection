@@ -9,7 +9,7 @@ import torch
 import bf
 from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
-from bf.utils.config_formatter import ConfigFormatter
+from bf.utils.config_wrapper import ConfigWrapper
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
 
@@ -22,7 +22,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     cfg = helpers.load_config(args.config)
-    config_formatter = ConfigFormatter(vars(cfg))
+    cfg = ConfigWrapper(cfg)
+    cfg.set_phases(args.phases)
 
     state = helpers.load_checkpoint(args.checkpoint)
 
@@ -31,12 +32,6 @@ if __name__ == '__main__':
 
     use_cuda = cfg.use_gpu and torch.cuda.is_available()
     device = 'cuda:0' if use_cuda else 'cpu'
-
-    for phase in list(cfg.dataset.keys()):
-        if phase not in args.phases:
-            del cfg.dataset[phase]
-
-    voc = cfg.dataset.get('val', {}).get('name', None) == 'Voc'
 
     dataloader, num_classes, dataset = data_builder.create_dataloaders(cfg.dataset,
                                                                        cfg.batch_size,
@@ -56,14 +51,16 @@ if __name__ == '__main__':
                                                          state=state)
     print(model)
 
-    mAP = functools.partial(mean_average_precision, class_labels=dataset['val'].class_labels, iou_threshold=.5, voc=voc)
+    mAP = functools.partial(mean_average_precision,
+                            class_labels=dataset['val'].class_labels,
+                            iou_threshold=.5,
+                            voc=cfg.is_voc('val'))
 
     if 'train' in args.phases:
         epochs = cfg.train['epochs']
         total_train_steps = len(dataloader['train']) // cfg.train['accumulation_steps']
 
-        config_formatter.context.update(locals())
-        config_formatter.format_obj(cfg)
+        cfg.update(locals())
 
         optimizer = train_builder.create_optimizer(model, cfg.train['optimizer'], state=state)
         print(optimizer)

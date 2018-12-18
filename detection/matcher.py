@@ -27,14 +27,27 @@ def match_bipartite(weights, inplace=False):
 
     return box_idx, anchor_idx
 
-def match_per_prediction(weights, threshold):
+def match_per_prediction(weights, matched_threshold, unmatched_threshold=None, force_match_for_each_target=True):
     """
     Args:
         weights: torch.tensor(:shape [Boxes, AnchorBoxes])
     Returns:
-        box_idx: torch.tensor(:shape [MathchedAnchors])
-        anchor_idx: torch.tensor(:shape [MathchedAnchors])
+        box_idx: torch.tensor(:shape [AnchorBoxes])
     """
+    if unmatched_threshold is None:
+        unmatched_threshold = matched_threshold
+    else:
+        assert matched_threshold >= unmatched_threshold
+
     overlap, box_idx = weights.max(dim=0)
-    anchor_idx = torch.nonzero(overlap > threshold)
-    return box_idx[anchor_idx], anchor_idx
+    below_matched = overlap < matched_threshold
+    below_unmatched = overlap < unmatched_threshold
+
+    box_idx[below_unmatched] = -2
+    box_idx[below_matched & ~below_unmatched] = -1
+
+    if force_match_for_each_target:
+        anchor_idx = weights.argmax(dim=1)
+        box_idx[anchor_idx] = torch.arange(0, anchor_idx.size(0), dtype=box_idx.dtype, device=box_idx.device)
+
+    return box_idx
