@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import functools
 import random
 
 import cv2
@@ -36,9 +37,10 @@ class Identity(object):
 class Resize(object):
     def __init__(self, size):
         self.size = size
+        self.target_fn = functional.box.resize
 
     def __call__(self, sample):
-        return functional.resize(sample, self.size)
+        return functional.resize(sample, self.size, target_fn=self.target_fn)
 
 class ToFloat(object):
     def __call__(self, sample):
@@ -58,50 +60,19 @@ class RandomCrop(RandomTransform):
                  **kwargs):
         super(RandomCrop, self).__init__(**kwargs)
 
-        self.min_iou = min_iou
         self.aspect_ratio_range = aspect_ratio_range
         self.area_range = area_range
-        self.keep_criterion = keep_criterion
-        self.min_objects_kept = min_objects_kept
+
+        self.target_fn = functools.partial(functional.box.crop,
+                                           min_iou=min_iou,
+                                           keep_criterion=keep_criterion,
+                                           min_objects_kept=min_objects_kept)
 
     def apply(self, sample):
-        img, target = functional.random_crop(sample,
-                                             min_iou=self.min_iou,
-                                             aspect_ratio_range=self.aspect_ratio_range,
-                                             area_range=self.area_range,
-                                             keep_criterion=self.keep_criterion,
-                                             min_objects_kept=self.min_objects_kept)
-        return img, target
-
-class RandomCropResize(RandomTransform):
-    def __init__(self,
-                 size=None,
-                 min_iou=.5,
-                 aspect_ratio_range=(0.5, 2.),
-                 area_range=(0.1, 1.),
-                 keep_criterion='center_point',
-                 min_objects_kept=1,
-                 **kwargs):
-        super(RandomCropResize, self).__init__(**kwargs)
-
-        self.size = size
-        self.min_iou = min_iou
-        self.aspect_ratio_range = aspect_ratio_range
-        self.area_range = area_range
-        self.keep_criterion = keep_criterion
-        self.min_objects_kept = min_objects_kept
-
-    def apply(self, sample):
-        size = self.size if self.size is not None else (sample[0].shape[1], sample[0].shape[0])
-        img, target = functional.random_crop(sample,
-                                             min_iou=self.min_iou,
-                                             aspect_ratio_range=self.aspect_ratio_range,
-                                             area_range=self.area_range,
-                                             keep_criterion=self.keep_criterion,
-                                             min_objects_kept=self.min_objects_kept)
-        if size != img.shape[:2]:
-            img, target = functional.resize((img, target), size)
-        return img, target
+        return functional.random_crop(sample,
+                                      target_fn=self.target_fn,
+                                      aspect_ratio_range=self.aspect_ratio_range,
+                                      area_range=self.area_range)
 
 class RandomExpand(RandomTransform):
     def __init__(self,
@@ -112,31 +83,29 @@ class RandomExpand(RandomTransform):
 
         self.aspect_ratio_range = aspect_ratio_range
         self.area_range = area_range
+        self.target_fn = functional.box.expand
 
     def apply(self, sample):
-        return functional.random_expand(sample, self.aspect_ratio_range, self.area_range)
+        return functional.random_expand(sample,
+                                        target_fn=self.target_fn,
+                                        aspect_ratio_range=self.aspect_ratio_range,
+                                        area_range=self.area_range)
 
 class RandomHorizontalFlip(RandomTransform):
     def __init__(self, **kwargs):
         super(RandomHorizontalFlip, self).__init__(**kwargs)
+        self.target_fn = functional.box.horizontal_flip
 
     def apply(self, sample):
-        img, target = sample
-        img = np.fliplr(img)
-        target[..., [0, 2]] = img.shape[1] - 1 - target[..., [2, 0]]
-
-        return img, target
+        return functional.horizontal_flip(sample, target_fn=self.target_fn)
 
 class RandomVerticalFlip(RandomTransform):
     def __init__(self, **kwargs):
         super(RandomVerticalFlip, self).__init__(**kwargs)
+        self.target_fn = functional.box.vertical_flip
 
     def apply(self, sample):
-        img, target = sample
-        img = np.flipud(img)
-        target[..., [1, 3]] = img.shape[0] - 1 - target[..., [3, 1]]
-
-        return img, target
+        return functional.vertical_flip(sample, target_fn=self.target_fn)
 
 class RandomAdjustBrightness(RandomTransform):
     def __init__(self, max_brightness_delta, **kwargs):
