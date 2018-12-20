@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from bf.modules import conv
 from detection.detector import Detector
-from detection.modules.prior_box import PriorBox
+from detection.modules.anchor import AnchorGenerator
 
 
 def _get_leaf_modules(module, memo=None, prefix=''):
@@ -29,11 +29,12 @@ class DetectorBuilder(object):
                  base,
                  num_classes,
                  source_layers,
-                 extra_layer_depth,
-                 min_scale,
-                 max_scale,
-                 num_scales,
-                 aspect_ratios,
+                 extra_layer_depth=(None, None, 512, 256, 256, 256),
+                 num_scales=6,
+                 sizes=None,
+                 min_scale=None,
+                 max_scale=None,
+                 aspect_ratios=[[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2,
                  steps=None,
                  offsets=[0.5, 0.5],
                  num_branches=None,
@@ -48,6 +49,7 @@ class DetectorBuilder(object):
         assert len(aspect_ratios) == num_scales
         assert len(source_layers) == num_scales
         assert len(extra_layer_depth) == num_scales
+        assert sizes is not None or (min_scale is not None and max_scale is not None)
 
         if steps is not None:
             assert len(steps) == num_scales
@@ -59,6 +61,15 @@ class DetectorBuilder(object):
             num_branches = [1] * self.num_scales
         else:
             assert len(num_branches) == num_scales
+
+        if min_scale is not None and max_scale is not None:
+            self.scales = torch.linspace(min_scale, max_scale, num_scales + 1)
+            print(f'Detector (Scales: {self.scales[:-1]})')
+        else:
+            self.scales = None
+
+        if sizes is not None:
+            self.sizes = sizes
 
         self.base = base
         self.num_classes = num_classes
@@ -73,15 +84,10 @@ class DetectorBuilder(object):
         self.activation_params = activation
         self.activation = functools.partial(getattr(nn, activation['name']), **activation['args'])
         self.batch_norm_params = batch_norm
-
-        self.num_boxes = [(len(x) + 1) * y for x, y in zip(aspect_ratios, num_branches)]
-        self.scales = torch.linspace(min_scale, max_scale, num_scales + 1)
-
-        print(f'Detector (Scales: {self.scales[:-1]})')
-
+        self.num_boxes = [(len(ar) + 1) * b for ar, b in zip(aspect_ratios, num_branches)]
         self.source_out_channels = self.get_source_out_channels()
 
-    def create(self):
+    def build(self):
         feature_layers = list(self.base.features.children())
         if self.last_feature_layer is not None:
             feature_layers = feature_layers[:(self.last_feature_layer + 1)]
@@ -176,10 +182,17 @@ class DetectorBuilder(object):
 
     def get_priors(self):
         priors = []
-        for i, (scale, ratios, step, num_branches) in enumerate(zip(self.scales, self.aspect_ratios, self.steps, self.num_branches)):
-            priors.append(PriorBox(ratios,
-                                   scale,
-                                   next_scale=self.scales[i + 1],
-                                   step=step,
-                                   num_branches=num_branches))
+        for i, (ratios, step, num_branches) in enumerate(zip(self.aspect_ratios, self.steps, self.num_branches)):
+            if self.scales is not None:
+                priors.append(AnchorGenerator(ratios,
+                                              min_scale=self.scales[i],
+                                              max_scale=self.scales[i + 1],
+                                              step=step,
+                                              num_branches=num_branches))
+            else:
+                priors.append(AnchorGenerator(ratios,
+                                              min_size=self.sizes[i],
+                                              max_size=self.sizes[i + 1],
+                                              step=step,
+                                              num_branches=num_branches))
         return priors

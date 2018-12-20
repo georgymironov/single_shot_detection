@@ -1,3 +1,5 @@
+import torch
+
 from bf.builders import base_builder
 from detection.box_coder import BoxCoder
 from detection.detector_builder import DetectorBuilder
@@ -17,7 +19,10 @@ def init(device,
     base = base_builder.create_base(model_params)
 
     kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
-    detector = DetectorBuilder(base, num_classes=num_classes, **kwargs).create().to(device)
+    detector = DetectorBuilder(base, num_classes=num_classes, **kwargs).build().to(device)
+
+    if 'weight' in model_params['detector']:
+        detector.load_state_dict(torch.load(model_params['detector']['weight']))
 
     if 'model' in state:
         print('===> Loading model weights from checkpoint')
