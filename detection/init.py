@@ -41,7 +41,6 @@ def init(device,
         }
 
     def step_fn(step, phase, batch, state):
-        device = next(detector.parameters()).device
         imgs, ground_truth = batch
         imgs = imgs.to(device)
 

@@ -23,6 +23,7 @@ class TargetAssigner(object):
         num_priors = priors.size(0)
         device = priors.device
 
+        ground_truth = [x.to(device, non_blocking=True) for x in ground_truth]
         corner_priors = box_utils.to_corners(priors)
 
         target_classes = torch.zeros((batch_size, num_priors), dtype=torch.long, device=device)

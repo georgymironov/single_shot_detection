@@ -18,12 +18,12 @@ class Postprocessor(object):
         assert b_scores.dim() == 3
 
         b_scores.exp_()
-
         b_scores = b_scores.cpu()
-        b_boxes = b_boxes.cpu()
 
+        b_boxes = b_boxes.to(priors.device)
         b_boxes = self.box_coder.decode_box(b_boxes, priors, inplace=False)
         b_boxes = box_utils.to_corners(b_boxes)
+        b_boxes = b_boxes.cpu()
 
         processed = []
         for scores, boxes in zip(b_scores, b_boxes):
