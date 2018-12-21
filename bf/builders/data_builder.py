@@ -28,7 +28,6 @@ def create_dataloaders(dataset_params,
     num_classes = None
     for phase in dataset_params.keys():
         Dataset = getattr(bf.datasets, dataset_params[phase]['name'])
-        num_classes = Dataset.num_classes
         kwargs = {k: v for k, v in dataset_params[phase].items() if k in Dataset.__init__.__code__.co_varnames}
 
         if phase == 'train':
@@ -49,5 +48,9 @@ def create_dataloaders(dataset_params,
                                        num_workers=num_workers,
                                        pin_memory=pin_memory,
                                        worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id))
+        if num_classes is None:
+            num_classes = dataset[phase].num_classes
+        else:
+            assert num_classes == dataset[phase].num_classes
 
     return dataloader, num_classes, dataset

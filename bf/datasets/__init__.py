@@ -1,5 +1,3 @@
 from .coco import Coco
 from .voc import Voc
-
-del coco
-del voc
+from .custom_voc import CustomVoc as custom_voc
