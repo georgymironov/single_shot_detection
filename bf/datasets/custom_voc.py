@@ -59,7 +59,7 @@ class CustomVoc(Dataset):
             img, target = self.augment((img, target))
         if self.resize:
             img, target = self.resize((img, target))
-        if self.preprocess:     
+        if self.preprocess:
             img, target = self.preprocess((img, target))
 
         return img, target

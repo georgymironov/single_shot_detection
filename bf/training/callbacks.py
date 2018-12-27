@@ -10,8 +10,9 @@ from bf.training import schedulers
 
 def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
     os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
-    if os.path.exists(config_path):
-        shutil.copy(config_path, checkpoint_dir)
+    new_config_path = os.path.join(checkpoint_dir, 'config.py')
+    if os.path.exists(config_path) and not os.path.samefile(config_path, new_config_path):
+        shutil.copy(config_path, new_config_path)
     print(f'===> Checkpoints will be saved to {checkpoint_dir}')
 
     @event_emitter.on('epoch_end')
