@@ -4,12 +4,13 @@ from xml.etree import ElementTree
 
 from jpeg4py import JPEG
 import numpy as np
-from torch.utils.data import Dataset
+import tqdm
 
-from bf.utils import dataset_utils, xml_utils
+from bf.datasets.detection_dataset import DetectionDataset
+from bf.utils import xml_utils
 
 
-class CustomVoc(Dataset):
+class CustomVoc(DetectionDataset):
     def __init__(self,
                  root,
                  labels,
@@ -25,12 +26,13 @@ class CustomVoc(Dataset):
 
         self.annotations = []
 
-        for annotation in glob.glob(os.path.join(root, '*.xml')):
+        for annotation in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.xml'), recursive=True), desc=root):
             xmldict = xml_utils.XmlDictConfig(ElementTree.parse(annotation).getroot())
 
             width = int(xmldict['size']['width'])
             height = int(xmldict['size']['height'])
-            objects = xmldict['object'] if isinstance(xmldict['object'], list) else [xmldict['object']]
+            objects = xmldict.get('object', [])
+            objects = objects if isinstance(objects, list) else [objects]
 
             boxes = [[
                 max(int(x['bndbox']['xmin']), 0),
@@ -42,13 +44,11 @@ class CustomVoc(Dataset):
             ] for x in objects]
 
             self.annotations.append({
-                'image_path': os.path.join(root, xmldict['filename']),
+                'image_path': os.path.join(os.path.dirname(annotation), xmldict['filename']),
                 'width': width,
                 'height': height,
-                'boxes': np.array(boxes, dtype=np.float32)
+                'boxes': np.array(boxes, dtype=np.float32).reshape((-1, 6))
             })
-
-        print(f'===> {root} loaded. {len(self)} images total')
 
     def __getitem__(self, index):
         annotation = self.annotations[index]
@@ -66,10 +66,3 @@ class CustomVoc(Dataset):
 
     def __len__(self):
         return len(self.annotations)
-
-    @staticmethod
-    def collate(batch):
-        return dataset_utils.collate_detections(batch)
-
-    def display(self, index):
-        dataset_utils.display(*self[index])

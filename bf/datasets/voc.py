@@ -3,12 +3,12 @@ from xml.etree import ElementTree
 
 from jpeg4py import JPEG
 import numpy as np
-from torch.utils.data import Dataset
 
-from bf.utils import dataset_utils, xml_utils
+from bf.datasets.detection_dataset import DetectionDataset
+from bf.utils import xml_utils
 
 
-class Voc(Dataset):
+class Voc(DetectionDataset):
     class_labels = ('background',
                     'aeroplane', 'bicycle', 'bird', 'boat',
                     'bottle', 'bus', 'car', 'cat', 'chair',
@@ -78,10 +78,3 @@ class Voc(Dataset):
 
     def __len__(self):
         return len(self.annotations)
-
-    @staticmethod
-    def collate(batch):
-        return dataset_utils.collate_detections(batch)
-
-    def display(self, index):
-        dataset_utils.display(*self[index])

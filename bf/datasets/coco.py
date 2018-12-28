@@ -4,12 +4,11 @@ import os
 
 from jpeg4py import JPEG
 import numpy as np
-from torch.utils.data import Dataset
 
-from bf.utils import dataset_utils
+from bf.datasets.detection_dataset import DetectionDataset
 
 
-class Coco(Dataset):
+class Coco(DetectionDataset):
     class_labels = ('background',
                     'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
                     'train', 'truck', 'boat', 'traffic light', 'fire hydrant',
@@ -88,10 +87,6 @@ class Coco(Dataset):
     def __len__(self):
         return len(self.annotations)
 
-    @staticmethod
-    def collate(batch):
-        return dataset_utils.collate_detections(batch)
-
     def _fix_boxes(self):
         for a in self.annotations:
             boxes = []
@@ -105,6 +100,3 @@ class Coco(Dataset):
                         box[4]
                     ])
             a['boxes'] = np.array(boxes, dtype=np.float32)
-
-    def display(self, index):
-        dataset_utils.display(*self[index])
