@@ -20,6 +20,9 @@ def vertical_flip(target, height):
     return target
 
 def crop(target, xmin, ymin, width, height, min_iou=0.5, keep_criterion='center_point', min_objects_kept=1):
+    if len(target) == 0:
+        return target
+
     region = np.array([xmin, ymin, xmin + width, ymin + height], dtype=np.float32)
     new_target = np.empty_like(target)
     new_target[:, :4] = box_utils.intersection(region[np.newaxis], target[:, :4], zero_incorrect=True).squeeze()

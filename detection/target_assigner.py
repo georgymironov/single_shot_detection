@@ -30,6 +30,9 @@ class TargetAssigner(object):
         target_locs = torch.zeros((batch_size, num_priors, 4), dtype=torch.float32, device=device)
 
         for i, gt in enumerate(ground_truth):
+            if len(gt) == 0:
+                continue
+
             weights = box_utils.jaccard(gt[:, :4], corner_priors)
 
             box_idx = match_per_prediction(weights,
