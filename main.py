@@ -51,10 +51,13 @@ if __name__ == '__main__':
                                                          state=state)
     print(model)
 
-    mAP = functools.partial(mean_average_precision,
-                            class_labels=dataset['val'].class_labels,
-                            iou_threshold=.5,
-                            voc=cfg.is_voc('val'))
+    if 'val' in args.phases:
+        metrics = {'mAP': functools.partial(mean_average_precision,
+                                            class_labels=dataset['val'].class_labels,
+                                            iou_threshold=.5,
+                                            voc=cfg.is_voc('val'))}
+    else:
+        metrics = {}
 
     if 'train' in args.phases:
         epochs = cfg.train['epochs']
@@ -77,7 +80,7 @@ if __name__ == '__main__':
                                    init_epoch_state_fn=init_epoch_state_fn,
                                    step_fn=step_fn,
                                    accumulation_steps=cfg.train['accumulation_steps'],
-                                   metrics={'mAP': mAP},
+                                   metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
 
         callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
@@ -101,5 +104,5 @@ if __name__ == '__main__':
         trainer.run(dataloader)
 
     elif 'val' in args.phases:
-        evaluator = bf.eval.Evaluator(model, init_epoch_state_fn, step_fn, metrics={'mAP': mAP})
+        evaluator = bf.eval.Evaluator(model, init_epoch_state_fn, step_fn, metrics=metrics)
         evaluator.run(dataloader['val'])
