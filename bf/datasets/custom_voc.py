@@ -44,7 +44,7 @@ class CustomVoc(DetectionDataset):
             ] for x in objects]
 
             self.annotations.append({
-                'image_path': os.path.join(os.path.dirname(annotation), xmldict['filename']),
+                'image_path': annotation.replace('.xml', '.jpg'),
                 'width': width,
                 'height': height,
                 'boxes': np.array(boxes, dtype=np.float32).reshape((-1, 6))

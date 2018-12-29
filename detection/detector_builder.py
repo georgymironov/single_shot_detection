@@ -58,7 +58,7 @@ class DetectorBuilder(object):
             self.steps = [None] * num_scales
 
         if num_branches is None:
-            num_branches = [1] * self.num_scales
+            num_branches = [1] * num_scales
         else:
             assert len(num_branches) == num_scales
 

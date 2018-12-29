@@ -22,7 +22,10 @@ def init(device,
     detector = DetectorBuilder(base, num_classes=num_classes, **kwargs).build().to(device)
 
     if 'weight' in model_params['detector']:
-        detector.load_state_dict(torch.load(model_params['detector']['weight']))
+        print(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
+        state_dict = detector.state_dict()
+        state_dict.update(torch.load(model_params['detector']['weight']))
+        detector.load_state_dict(state_dict)
 
     if 'model' in state:
         print('===> Loading model weights from checkpoint')

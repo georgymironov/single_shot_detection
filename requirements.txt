@@ -6,3 +6,4 @@ scikit-image
 tensorboardX
 torch
 torchvision
+tqdm
