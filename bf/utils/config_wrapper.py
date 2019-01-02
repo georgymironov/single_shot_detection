@@ -17,6 +17,6 @@ class ConfigWrapper(object):
 
     def set_phases(self, phases):
         self.phases = phases
-        for phase in list(self.config.dataset.keys()):
-            if phase not in phases:
-                del self.config.dataset[phase]
+        # for phase in list(self.config.dataset.keys()):
+        #     if phase not in phases:
+        #         del self.config.dataset[phase]

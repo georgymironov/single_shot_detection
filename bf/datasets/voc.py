@@ -1,7 +1,6 @@
 import os
 from xml.etree import ElementTree
 
-from jpeg4py import JPEG
 import numpy as np
 
 from bf.datasets.detection_dataset import DetectionDataset
@@ -61,20 +60,3 @@ class Voc(DetectionDataset):
                 })
 
         print(f'===> Pascal VOC {image_sets} loaded. {len(self)} images total')
-
-    def __getitem__(self, index):
-        annotation = self.annotations[index]
-        img = JPEG(annotation['image_path']).decode()
-        target = annotation['boxes'].copy()
-
-        if self.augment:
-            img, target = self.augment((img, target))
-        if self.resize:
-            img, target = self.resize((img, target))
-        if self.preprocess:
-            img, target = self.preprocess((img, target))
-
-        return img, target
-
-    def __len__(self):
-        return len(self.annotations)
