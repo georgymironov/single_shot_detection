@@ -41,13 +41,14 @@ if __name__ == '__main__':
                                                                        shuffle=cfg.shuffle,
                                                                        num_workers=cfg.num_workers,
                                                                        pin_memory=use_cuda)
-    model, init_epoch_state_fn, step_fn = init_detection(device,
-                                                         num_classes,
-                                                         cfg.model,
-                                                         cfg.box_coder,
-                                                         cfg.postprocess,
-                                                         cfg.loss,
-                                                         cfg.target_assigner,
+    model, init_epoch_state_fn, step_fn = init_detection(device=device,
+                                                         num_classes=num_classes,
+                                                         model_params=cfg.model,
+                                                         box_coder_params=cfg.box_coder,
+                                                         postprocess_params=cfg.postprocess,
+                                                         sampler_params=cfg.sampler,
+                                                         loss_params=cfg.loss,
+                                                         target_assigner_params=cfg.target_assigner,
                                                          state=state)
     print(model)
 

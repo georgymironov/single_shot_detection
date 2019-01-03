@@ -1,6 +1,9 @@
+import functools
+
 import torch
 
 from bf.builders import base_builder
+import detection.sampler
 from detection.box_coder import BoxCoder
 from detection.detector_builder import DetectorBuilder
 from detection.losses.mutibox_loss import MultiboxLoss
@@ -14,6 +17,7 @@ def init(device,
          box_coder_params,
          postprocess_params,
          loss_params,
+         sampler_params,
          target_assigner_params,
          state={}):
     base = base_builder.create_base(model_params)
@@ -31,7 +35,11 @@ def init(device,
         print('===> Loading model weights from checkpoint')
         detector.load_state_dict(state['model'])
 
-    criterion = MultiboxLoss(**loss_params)
+    sampler = getattr(detection.sampler, sampler_params['name'])
+    kwargs = {k: v for k, v in sampler_params.items() if k in sampler.__code__.co_varnames}
+    sampler = functools.partial(sampler, **kwargs)
+
+    criterion = MultiboxLoss(sampler=sampler, **loss_params)
     box_coder = BoxCoder(**box_coder_params)
     postprocessor = Postprocessor(box_coder, **postprocess_params)
     target_assigner = TargetAssigner(box_coder, **target_assigner_params)

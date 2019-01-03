@@ -21,13 +21,17 @@ box_coder = {
     'wh_scale': 5.0,
 }
 
+sampler = {
+    'name': 'hard_negative_mining',
+    'negative_per_positive_ratio': 3,
+    'min_negative_per_image': 5
+}
+
 loss = {
     'classification_loss': {'name': 'NLLLoss'},
     'localization_loss': {'name': 'SmoothL1Loss'},
     'classification_weight': 1.0,
-    'localization_weight': 1.0,
-    'negative_per_positive_ratio': 3,
-    'min_negative_per_image': 5
+    'localization_weight': 1.0
 }
 
 postprocess = {

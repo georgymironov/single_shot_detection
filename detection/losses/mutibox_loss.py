@@ -4,27 +4,13 @@ import torch.nn as nn
 from bf.modules import losses
 
 
-def hard_negative_mining(loss, target_classes, negative_per_positive_ratio, min_negative_per_image):
-    negative_mask = target_classes.eq(0)
-    positive_mask = target_classes.gt(0)
-    num_negatives = negative_mask.sum(dim=1, keepdim=True)
-    num_positives = positive_mask.sum(dim=1, keepdim=True)
-
-    num_negatives = torch.min(torch.clamp_(num_positives * negative_per_positive_ratio, min=min_negative_per_image), num_negatives)
-    negative_loss = loss * negative_mask.float()
-    rank = negative_loss.argsort(dim=1, descending=True).argsort(dim=1)
-    hard_negative_mask = rank < num_negatives
-
-    return positive_mask | hard_negative_mask
-
 class MultiboxLoss(nn.Module):
     def __init__(self,
                  classification_loss,
                  localization_loss,
-                 negative_per_positive_ratio,
+                 sampler,
                  classification_weight=1.0,
-                 localization_weight=1.0,
-                 min_negative_per_image=0):
+                 localization_weight=1.0):
         super(MultiboxLoss, self).__init__()
 
         ClassificationLoss = getattr(losses, classification_loss['name'])
@@ -37,8 +23,7 @@ class MultiboxLoss(nn.Module):
 
         self.classification_weight = classification_weight
         self.localization_weight = localization_weight
-        self.negative_per_positive_ratio = negative_per_positive_ratio
-        self.min_negative_per_image = min_negative_per_image
+        self.sampler = sampler
 
     def forward(self, pred, target):
         """
@@ -62,7 +47,7 @@ class MultiboxLoss(nn.Module):
         class_loss = self.classification_loss(classes, target_classes.view(-1))
 
         class_loss = class_loss.view(batch_size, -1)
-        mask = hard_negative_mining(class_loss, target_classes, self.negative_per_positive_ratio, self.min_negative_per_image)
+        mask = self.sampler(class_loss, target_classes)
         class_loss = torch.sum(class_loss[mask])
 
         positive_mask = target_classes.gt(0)
