@@ -3,21 +3,16 @@ use_gpu = True
 
 model = {
     'base': {
-        'name': 'mobilenet_v2_10',
-        'weight': './weights/mobilenet_v2_keras.pt',
-        'batch_norm': {
-            'eps': 1e-3,
-        }
+        'name': 'mobilenet_v2_10'
     },
     'detector': {
         'use_depthwise': True,
-        'source_layers': ((13, 'expand_relu'), 18, 's', 's', 's', 's'),
+        'source_layers': ([13, 'expand_relu'], 18, 's', 's', 's', 's'),
         'extra_layer_depth': (None, None, 512, 256, 256, 128),
         'min_scale': 0.1,
         'max_scale': 1.05,
         'num_scales': 6,
-        'aspect_ratios': [[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2,
-        'num_branches': [2, 2, 1, 1, 1, 1]
+        'aspect_ratios': [[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2
     }
 }
 
@@ -34,7 +29,7 @@ loss = {
 }
 
 postprocess = {
-    'score_threshold': .1,
+    'score_threshold': .01,
     'max_total': 200,
     'nms': {
         'max_per_class': 100,
@@ -72,39 +67,38 @@ augmentations = [
 
 preprocessing = [
     {'name': 'ToFloatTensor', 'args': {'normalize': True}},
-    {'name': 'Normalize', 'args': {'mean': 128 / 255, 'std': 128 / 255}},
-    # {'name': 'Normalize', 'args': {'mean': [0.485, 0.456, 0.406], 'std': [0.229, 0.224, 0.225]}},
+    {'name': 'Normalize', 'args': {'mean': [0.485, 0.456, 0.406], 'std': [0.229, 0.224, 0.225]}},
 ]
 
 input_size = (300, 300)
 
-# dataset = {
-#     'train': {
-#         'name': 'Voc',
-#         'root': '/home/george.mironov/documents/voc',
-#         'image_sets': [(2007, 'trainval'), (2012, 'trainval')]
-#     },
-#     'val': {
-#         'name': 'Voc',
-#         'root': '/home/george.mironov/documents/voc',
-#         'image_sets': [(2007, 'test')]
-#     }
-# }
 dataset = {
     'train': {
-        'name': 'Coco',
-        'root': '/home/george.mironov/documents/coco2017'
+        'name': 'Voc',
+        'root': '{HOME}/documents/pascal-voc',
+        'image_sets': [(2007, 'trainval'), (2012, 'trainval')]
     },
     'val': {
-        'name': 'Coco',
-        'root': '/home/george.mironov/documents/coco2017',
-        'val': True
+        'name': 'Voc',
+        'root': '{HOME}/documents/pascal-voc',
+        'image_sets': [(2007, 'test')]
     }
 }
+# dataset = {
+#     'train': {
+#         'name': 'Coco',
+#         'root': '{HOME}/documents/coco2017'
+#     },
+#     'val': {
+#         'name': 'Coco',
+#         'root': '{HOME}/documents/coco2017',
+#         'val': True
+#     }
+# }
 
 batch_size = 32
 shuffle = True
-num_workers = 4
+num_workers = 2
 
 train = {
     'accumulation_steps': 1,
@@ -123,11 +117,4 @@ train = {
         'milestones': [120, 160],
         'gamma': 0.1
     }
-
-    # 'scheduler': {
-    #     'name': 'CosineAnnealingLR',
-    #     'run_each_step': True,
-    #     'T_max': '{total_train_steps} * {epochs}',
-    #     'eta_min': 0
-    # }
 }

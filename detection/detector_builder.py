@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from bf.modules import conv
+from bf.utils.torch_utils import get_multiple_outputs
 from detection.detector import Detector
 from detection.modules.anchor import AnchorGenerator
 
@@ -104,30 +105,9 @@ class DetectorBuilder(object):
                         self.source_layers)
 
     def get_source_out_channels(self):
-        source_out_channels = []
-
-        x = torch.ones((1, 3, 300, 300), dtype=torch.float)
-        source_layer_idx = 0
-        for i, layer in enumerate(self.base.features):
-            source_layer = self.source_layers[source_layer_idx]
-            x = layer(x)
-            if isinstance(source_layer, int):
-                if i == source_layer:
-                    source_out_channels.append(x.size(1))
-                    source_layer_idx += 1
-            elif isinstance(source_layer, tuple):
-                if i == source_layer[0]:
-                    y = x
-                    for name, child in self.base.features[i + 1].named_children():
-                        y = child(y)
-                        if name == source_layer[1]:
-                            break
-                    else:
-                        raise ValueError(f'Wrong layer {source_layer}')
-                    source_out_channels.append(y.size(1))
-                    source_layer_idx += 1
-
-        return source_out_channels
+        dummy = torch.ones((1, 3, 300, 300), dtype=torch.float)
+        sources, _ = get_multiple_outputs(self.base.features, dummy, self.source_layers)
+        return [x.size(1) for x in sources]
 
     def get_extras(self):
         extras = nn.ModuleList()

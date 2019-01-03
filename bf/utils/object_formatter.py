@@ -1,12 +1,15 @@
+import os
 import string
 
-from .misc_utils import try_int
+from .misc_utils import try_int, try_eval
 
 
 class ObjectFormatter(object):
     def __init__(self, obj):
+        self.context = dict()
         self.obj = obj
-        self.context = vars(obj)
+        self.update_context(dict(os.environ))
+        self.update_context(vars(obj))
 
     def update_context(self, ctx):
         self.context.update(ctx)
@@ -25,28 +28,27 @@ class ObjectFormatter(object):
                 fields[field] = value
             else:
                 raise ValueError(f'{field} field missing in context')
-        return try_int(eval(attr.format(**fields)))
+        return try_int(try_eval(attr.format(**fields)))
 
-    def _format_dict(self, d):
-        for k, v in d.items():
+    def _format_dict(self, dict_):
+        for k, v in dict_.items():
             if isinstance(v, str):
-                d[k] = self._format_str(v)
+                dict_[k] = self._format_str(v)
             if isinstance(v, dict):
-                d[k] = self._format_dict(v)
-            if isinstance(v, (list, tuple)):
-                d[k] = self._format_list(v)
-        return d
+                dict_[k] = self._format_dict(v)
+            if isinstance(v, list):
+                dict_[k] = self._format_list(v)
+        return dict_
 
-    def _format_list(self, l):
-        l = list(l)
-        for i, x in enumerate(l):
+    def _format_list(self, list_):
+        for i, x in enumerate(list_):
             if isinstance(x, str):
-                l[i] = self._format_str(x)
+                list_[i] = self._format_str(x)
             if isinstance(x, dict):
-                l[i] = self._format_dict(x)
-            if isinstance(x, (list, tuple)):
-                l[i] = self._format_list(x)
-        return l
+                list_[i] = self._format_dict(x)
+            if isinstance(x, list):
+                list_[i] = self._format_list(x)
+        return list_
 
     def format_obj(self):
         obj = self.obj
@@ -58,5 +60,5 @@ class ObjectFormatter(object):
                 setattr(obj, attr_name, self._format_str(attr))
             if isinstance(attr, dict):
                 setattr(obj, attr_name, self._format_dict(attr))
-            if isinstance(attr, (list, tuple)):
+            if isinstance(attr, list):
                 setattr(obj, attr_name, self._format_list(attr))

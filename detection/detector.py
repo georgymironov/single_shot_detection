@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from bf.utils.torch_utils import get_multiple_outputs
+
 
 class Detector(nn.Module):
     def __init__(self,
@@ -32,32 +34,11 @@ class Detector(nn.Module):
                 torch.tensor(:shape [Batch, AnchorBoxes, 4])
                 torch.tensor(:shape [AnchorBoxes, 4])
         """
-        sources = []
         classes = []
         locs = []
         priors = []
 
-        x = img
-        source_layer_idx = 0
-        for i, layer in enumerate(self.features):
-            x = layer(x)
-            source_layer = self.source_layers[source_layer_idx]
-
-            if isinstance(source_layer, int):
-                if i == source_layer:
-                    sources.append(x)
-                    source_layer_idx += 1
-            elif isinstance(source_layer, tuple):
-                if i == source_layer[0]:
-                    y = x
-                    for name, child in self.features[i + 1].named_children():
-                        y = child(y)
-                        if name == source_layer[1]:
-                            break
-                    else:
-                        raise ValueError(f'Wrong layer {source_layer}')
-                    sources.append(y)
-                    source_layer_idx += 1
+        sources, x = get_multiple_outputs(self.features, img, self.source_layers)
 
         for layer in self.extras:
             x = layer(x)
