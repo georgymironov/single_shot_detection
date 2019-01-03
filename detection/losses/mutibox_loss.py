@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+from bf.modules import losses
 
 
 def hard_negative_mining(loss, target_classes, negative_per_positive_ratio, min_negative_per_image):
@@ -18,11 +19,21 @@ def hard_negative_mining(loss, target_classes, negative_per_positive_ratio, min_
 
 class MultiboxLoss(nn.Module):
     def __init__(self,
-                 classification_weight,
-                 localization_weight,
+                 classification_loss,
+                 localization_loss,
                  negative_per_positive_ratio,
+                 classification_weight=1.0,
+                 localization_weight=1.0,
                  min_negative_per_image=0):
         super(MultiboxLoss, self).__init__()
+
+        ClassificationLoss = getattr(losses, classification_loss['name'])
+        kwargs = {k: v for k, v in classification_loss.items() if k in ClassificationLoss.__init__.__code__.co_varnames}
+        self.classification_loss = ClassificationLoss(reduction='none', ignore_index=-1, **kwargs)
+
+        LocalizationLoss = getattr(losses, localization_loss['name'])
+        kwargs = {k: v for k, v in localization_loss.items() if k in LocalizationLoss.__init__.__code__.co_varnames}
+        self.localization_loss = LocalizationLoss(reduction='sum', **kwargs)
 
         self.classification_weight = classification_weight
         self.localization_weight = localization_weight
@@ -48,7 +59,7 @@ class MultiboxLoss(nn.Module):
         target_classes, target_locs = target
 
         classes = classes.view(-1, num_classes)
-        class_loss = F.nll_loss(classes, target_classes.view(-1), reduction='none', ignore_index=-1)
+        class_loss = self.classification_loss(classes, target_classes.view(-1))
 
         class_loss = class_loss.view(batch_size, -1)
         mask = hard_negative_mining(class_loss, target_classes, self.negative_per_positive_ratio, self.min_negative_per_image)
@@ -57,7 +68,7 @@ class MultiboxLoss(nn.Module):
         positive_mask = target_classes.gt(0)
         positive_locs = locs[positive_mask].view(-1, 4)
         positive_target_locs = target_locs[positive_mask].view(-1, 4)
-        loc_loss = F.smooth_l1_loss(positive_locs, positive_target_locs, reduction='sum')
+        loc_loss = self.localization_loss(positive_locs, positive_target_locs)
 
         divider = positive_mask.sum().clamp(min=1).float()
         loc_loss /= divider

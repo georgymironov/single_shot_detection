@@ -22,6 +22,8 @@ box_coder = {
 }
 
 loss = {
+    'classification_loss': {'name': 'NLLLoss'},
+    'localization_loss': {'name': 'SmoothL1Loss'},
     'classification_weight': 1.0,
     'localization_weight': 1.0,
     'negative_per_positive_ratio': 3,
