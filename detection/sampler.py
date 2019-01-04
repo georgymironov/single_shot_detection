@@ -2,7 +2,7 @@ import torch
 
 
 def naive_sampler(loss, target_classes):
-    return torch.ones_like(loss, dtype=torch.uint8)
+    return target_classes >= 0
 
 def hard_negative_mining(loss, target_classes, negative_per_positive_ratio, min_negative_per_image):
     negative_mask = target_classes.eq(0)

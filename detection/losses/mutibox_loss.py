@@ -15,7 +15,7 @@ class MultiboxLoss(nn.Module):
 
         ClassificationLoss = getattr(losses, classification_loss['name'])
         kwargs = {k: v for k, v in classification_loss.items() if k in ClassificationLoss.__init__.__code__.co_varnames}
-        self.classification_loss = ClassificationLoss(reduction='none', ignore_index=-1, **kwargs)
+        self.classification_loss = ClassificationLoss(reduction='none', **kwargs)
 
         LocalizationLoss = getattr(losses, localization_loss['name'])
         kwargs = {k: v for k, v in localization_loss.items() if k in LocalizationLoss.__init__.__code__.co_varnames}
