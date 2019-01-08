@@ -6,21 +6,22 @@ import bf.datasets
 from bf.preprocessing import transforms
 
 
-def create_dataloaders(data_params,
-                       batch_size,
-                       input_size,
-                       augmentations=[],
-                       preprocessing=[],
-                       shuffle=False,
-                       num_workers=0,
-                       pin_memory=False):
-
+def create_preprocessing(input_size, augmentations, preprocessing):
     resize = transforms.Resize(input_size)
     augment, preprocess = [
         transforms.Compose([getattr(transforms, x['name'])(**x.get('args', {})) for x in transform_set])
         for transform_set in (augmentations, preprocessing)
     ]
+    return resize, augment, preprocess
 
+def create_dataloaders(data_params,
+                       batch_size,
+                       resize,
+                       augment,
+                       preprocess,
+                       shuffle=False,
+                       num_workers=0,
+                       pin_memory=False):
     def _build_dataloader(dataset_params,
                           phase,
                           labels=None,
@@ -50,7 +51,6 @@ def create_dataloaders(data_params,
     dataset = {}
     dataloader = {}
 
-    num_classes = None
     for phase in ['train', 'val']:
         if phase in data_params:
             dataset[phase], dataloader[phase] = _build_dataloader(data_params[phase],
@@ -58,9 +58,4 @@ def create_dataloaders(data_params,
                                                                   labels=data_params.get('labels'),
                                                                   label_map=data_params.get('label_map'))
 
-        if num_classes is None:
-            num_classes = dataset[phase].num_classes
-        else:
-            assert num_classes == dataset[phase].num_classes
-
-    return dataloader, num_classes, dataset
+    return dataloader, dataset

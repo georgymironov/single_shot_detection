@@ -8,7 +8,7 @@ from bf.utils import box_utils
 def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=False, verbose=True):
     """
     Args:
-        predictions: torch.tensor(:shape [NumBoxes, 7] ~ {[0] - image_id, [1-4] - box, [5] - score, [6] - class})
+        predictions: torch.tensor(:shape [NumBoxes, 7] ~ {[0] - image_id, [1-4] - box, [5] - class, [6] - score})
         gts: list(:len NumImages) of torch.tensor(:shape [NumBoxes_i, 5/6] ~ {[0-3] - box, [4] - class, [5]? - is_difficult})
         class_labels: dict(:keys ClassId, :values ClassName)
         iou_threshold: float
@@ -35,7 +35,7 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
         gt_by_class = {class_index: torch.stack(gt_boxes, dim=0) for class_index, gt_boxes in gt_by_class.items()}
         gt_grouped.append(gt_by_class)
 
-    indexes = predictions[:, 5].argsort(dim=0, descending=True)
+    indexes = predictions[:, 6].argsort(dim=0, descending=True)
     predictions = predictions[indexes]
 
     true_positive = defaultdict(list)
@@ -44,7 +44,7 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
 
     for pred in predictions:
         id_ = int(pred[0].item())
-        class_index = int(pred[6].item())
+        class_index = int(pred[5].item())
         box = pred[1:5]
 
         true_positive[class_index].append(0 if len(true_positive[class_index]) == 0 else true_positive[class_index][-1])

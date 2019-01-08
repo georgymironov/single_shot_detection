@@ -4,12 +4,14 @@ import functools
 import os
 import random
 
+import cv2
 import torch
 
 import bf
 from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
 from bf.utils.config_wrapper import ConfigWrapper
+from bf.utils import dataset_utils
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
 
@@ -19,6 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', default='./config.py')
     parser.add_argument('--checkpoint', type=str, default='./experiments')
     parser.add_argument('--phases', nargs='+', default=['train', 'val'])
+    parser.add_argument('--video', type=str)
     args = parser.parse_args()
 
     cfg = helpers.load_config(args.config)
@@ -33,24 +36,27 @@ if __name__ == '__main__':
     use_cuda = cfg.use_gpu and torch.cuda.is_available()
     device = 'cuda:0' if use_cuda else 'cpu'
 
-    dataloader, num_classes, dataset = data_builder.create_dataloaders(cfg.dataset,
-                                                                       cfg.batch_size,
-                                                                       cfg.input_size,
-                                                                       cfg.augmentations,
-                                                                       cfg.preprocessing,
-                                                                       shuffle=cfg.shuffle,
-                                                                       num_workers=cfg.num_workers,
-                                                                       pin_memory=use_cuda)
-    model, init_epoch_state_fn, step_fn = init_detection(device=device,
-                                                         num_classes=num_classes,
-                                                         model_params=cfg.model,
-                                                         box_coder_params=cfg.box_coder,
-                                                         postprocess_params=cfg.postprocess,
-                                                         sampler_params=cfg.sampler,
-                                                         loss_params=cfg.loss,
-                                                         target_assigner_params=cfg.target_assigner,
-                                                         state=state)
-    print(model)
+    resize, augment, preprocess = data_builder.create_preprocessing(cfg.input_size, cfg.augmentations, cfg.preprocessing)
+
+    if 'train' in args.phases or 'val' in args.phases:
+        dataloader, dataset = data_builder.create_dataloaders(cfg.dataset,
+                                                              cfg.batch_size,
+                                                              resize,
+                                                              augment,
+                                                              preprocess,
+                                                              shuffle=cfg.shuffle,
+                                                              num_workers=cfg.num_workers,
+                                                              pin_memory=use_cuda)
+
+    detector, init_epoch_state_fn, step_fn = init_detection(device=device,
+                                                            model_params=cfg.model,
+                                                            box_coder_params=cfg.box_coder,
+                                                            postprocess_params=cfg.postprocess,
+                                                            sampler_params=cfg.sampler,
+                                                            loss_params=cfg.loss,
+                                                            target_assigner_params=cfg.target_assigner,
+                                                            state=state)
+    print(detector.model)
 
     if 'val' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
@@ -66,7 +72,7 @@ if __name__ == '__main__':
 
         cfg.update(locals())
 
-        optimizer = train_builder.create_optimizer(model, cfg.train['optimizer'], state=state)
+        optimizer = train_builder.create_optimizer(detector.model, cfg.train['optimizer'], state=state)
         print(optimizer)
 
         if state:
@@ -76,7 +82,7 @@ if __name__ == '__main__':
 
         trainer = bf.train.Trainer(epochs,
                                    args.phases,
-                                   model,
+                                   detector.model,
                                    optimizer,
                                    init_epoch_state_fn=init_epoch_state_fn,
                                    step_fn=step_fn,
@@ -105,5 +111,25 @@ if __name__ == '__main__':
         trainer.run(dataloader)
 
     elif 'val' in args.phases:
-        evaluator = bf.eval.Evaluator(model, init_epoch_state_fn, step_fn, metrics=metrics)
+        evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
         evaluator.run(dataloader['val'])
+    elif 'test' in args.phases:
+        cap = cv2.VideoCapture(args.video)
+        cv2.namedWindow('image', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('image', *cfg.input_size)
+
+        detector.model.eval()
+
+        while cap.isOpened():
+            _, frame = cap.read()
+            frame = cv2.resize(frame, cfg.input_size)
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            input_ = preprocess((rgb, None))[0]
+
+            prediction = detector.predict(input_.unsqueeze(0))
+
+            if dataset_utils.display(rgb, prediction[0]) & 0xFF == ord('q'):
+                break
+
+        cap.release()
+        cv2.destroyAllWindows()

@@ -6,6 +6,7 @@ model = {
         'name': 'mobilenet_v2_10'
     },
     'detector': {
+        'num_classes': 21,
         'use_depthwise': True,
         'source_layers': ([13, 'expand_relu'], 18, 's', 's', 's', 's'),
         'extra_layer_depth': (None, None, 512, 256, 256, 128),

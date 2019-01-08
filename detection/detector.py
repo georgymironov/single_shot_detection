@@ -77,3 +77,15 @@ class Detector(nn.Module):
     def init(self):
         self.extras.apply(self.init_layer)
         self.heads.apply(self.init_layer)
+
+
+class DetectorWrapper(object):
+    def __init__(self, detector, postprocessor):
+        self.device = next(detector.parameters()).device
+        self.model = detector
+        self.postprocessor = postprocessor
+
+    def predict(self, input):
+        *prediction, priors = self.model(input.to(self.device))
+        prediction = [x.detach() for x in prediction]
+        return self.postprocessor.postprocess(prediction, priors)

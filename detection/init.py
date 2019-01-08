@@ -5,6 +5,7 @@ import torch
 from bf.builders import base_builder
 import detection.sampler
 from detection.box_coder import BoxCoder
+from detection.detector import DetectorWrapper
 from detection.detector_builder import DetectorBuilder
 from detection.losses.mutibox_loss import MultiboxLoss
 from detection.postprocessor import Postprocessor
@@ -12,7 +13,6 @@ from detection.target_assigner import TargetAssigner
 
 
 def init(device,
-         num_classes,
          model_params,
          box_coder_params,
          postprocess_params,
@@ -23,7 +23,7 @@ def init(device,
     base = base_builder.create_base(model_params)
 
     kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
-    detector = DetectorBuilder(base, num_classes=num_classes, **kwargs).build().to(device)
+    detector = DetectorBuilder(base, **kwargs).build().to(device)
 
     if 'weight' in model_params['detector']:
         print(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
@@ -43,6 +43,8 @@ def init(device,
     box_coder = BoxCoder(**box_coder_params)
     postprocessor = Postprocessor(box_coder, **postprocess_params)
     target_assigner = TargetAssigner(box_coder, **target_assigner_params)
+
+    detector_wrapper = DetectorWrapper(detector, postprocessor)
 
     def init_epoch_state():
         return {
@@ -80,4 +82,4 @@ def init(device,
 
         return loss, prediction, state
 
-    return detector, init_epoch_state, step_fn
+    return detector_wrapper, init_epoch_state, step_fn

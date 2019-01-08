@@ -36,7 +36,7 @@ class Postprocessor(object):
                 (boxes_picked, scores_picked), _ = self.nms(boxes[mask], class_scores[mask])
                 classes_picked = torch.full_like(scores_picked.unsqueeze_(1), class_index, dtype=torch.float)
 
-                picked.append(torch.cat([boxes_picked, scores_picked, classes_picked], dim=-1))
+                picked.append(torch.cat([boxes_picked, classes_picked, scores_picked], dim=-1))
 
             picked = torch.cat(picked, dim=0)
 

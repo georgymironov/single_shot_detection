@@ -21,3 +21,9 @@ def filter_kwargs(func):
         kwargs = {k: v for k, v in kwargs.items() if k in func.__code__.co_varnames}
         return func(*args, **kwargs)
     return wrapped_func
+
+def filter_ctor_args(Class):
+    def wrapper_function(*args, **kwargs):
+        kwargs = {k: v for k, v in kwargs.items() if k in Class.__init__.__code__.co_varnames}
+        return Class(*args, **kwargs)
+    return wrapper_function

@@ -1,8 +1,6 @@
 jpeg4py
 numpy
-opencv-python
 pandas
-scikit-image
 tensorboardX
 torch
 torchvision
