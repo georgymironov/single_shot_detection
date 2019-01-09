@@ -85,7 +85,7 @@ class DetectorWrapper(object):
         self.model = detector
         self.postprocessor = postprocessor
 
-    def predict(self, input):
-        *prediction, priors = self.model(input.to(self.device))
+    def predict(self, input_):
+        *prediction, priors = self.model(input_.to(self.device))
         prediction = [x.detach() for x in prediction]
         return self.postprocessor.postprocess(prediction, priors)

@@ -46,10 +46,11 @@ class Trainer(EventEmitter):
         self.state['epoch'] = initial_epoch
         self.state['global_step'] = initial_step
 
-    def _train_epoch(self, dataloader):
+    def _train_epoch(self, dataloader, num_batches=None):
         start = time.time()
         global_state = self.state
-        epoch_len = len(dataloader) // self.accumulation_steps
+        num_batches = len(dataloader) if num_batches is None else num_batches
+        epoch_len = num_batches // self.accumulation_steps
         epoch_state = self.init_epoch_state_fn()
 
         self.model.train()
@@ -57,6 +58,9 @@ class Trainer(EventEmitter):
         self.optimizer.zero_grad()
 
         for step, batch in enumerate(dataloader):
+            if step >= num_batches:
+                break
+
             if (step + 1) % self.accumulation_steps == 0:
                 global_state['global_step'] += 1
                 self.emit('step_start', phase='train', global_state=self.state, state=epoch_state)
@@ -84,7 +88,7 @@ class Trainer(EventEmitter):
 
         return epoch_state
 
-    def run(self, dataloader):
+    def run(self, dataloader, num_batches_per_epoch=None):
         start = time.time()
 
         for epoch in range(self.state['epoch'], self.epochs):
@@ -100,7 +104,7 @@ class Trainer(EventEmitter):
                 self.emit('phase_start', phase=phase, global_state=self.state)
 
                 if phase == 'train':
-                    phase_state = self._train_epoch(dataloader['train'])
+                    phase_state = self._train_epoch(dataloader['train'], num_batches=num_batches_per_epoch)
                 if phase == 'val':
                     phase_state = self.evaluator.run(dataloader['val'])
 

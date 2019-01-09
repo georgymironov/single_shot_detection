@@ -108,7 +108,7 @@ if __name__ == '__main__':
             print(f'>> Resuming from: step: {state["global_step"]}, epoch: {state["epoch"]}')
             trainer.resume(initial_step=state['global_step'] + 1, initial_epoch=state['epoch'] + 1)
 
-        trainer.run(dataloader)
+        trainer.run(dataloader, num_batches_per_epoch=cfg.train.get('num_batches_per_epoch'))
 
     elif 'val' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
