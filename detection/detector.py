@@ -12,7 +12,8 @@ class Detector(nn.Module):
                  extras,
                  heads,
                  priors,
-                 source_layers):
+                 source_layers,
+                 generate_priors=True):
         super(Detector, self).__init__()
 
         self.num_classes = num_classes
@@ -21,6 +22,7 @@ class Detector(nn.Module):
         self.heads = heads
         self.priors = priors
         self.source_layers = source_layers
+        self.generate_priors = generate_priors
 
         self.init()
 
@@ -57,15 +59,21 @@ class Detector(nn.Module):
                     .contiguous()
                     .view(source.size(0), -1, 4))
 
-            priors.append(prior.forward(img, source).view(-1, 4))
+            if self.generate_priors:
+                priors.append(prior.generate(img, source).view(-1, 4))
 
         classes = torch.cat(classes, dim=1)
         locs = torch.cat(locs, dim=1)
-        priors = torch.cat(priors, dim=0)
+
+        if self.generate_priors:
+            priors = torch.cat(priors, dim=0)
 
         classes = F.log_softmax(classes, dim=-1)
 
-        return classes, locs, priors
+        if self.generate_priors:
+            return classes, locs, priors
+        else:
+            return classes, locs
 
     @staticmethod
     def init_layer(layer):

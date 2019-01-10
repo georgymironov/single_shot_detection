@@ -6,23 +6,7 @@ import torch.nn as nn
 from bf.modules import conv
 from bf.utils.torch_utils import get_multiple_outputs
 from detection.detector import Detector
-from detection.modules.anchor import AnchorGenerator
-
-
-def _get_leaf_modules(module, memo=None, prefix=''):
-    if memo is None:
-        memo = set()
-    if module not in memo:
-        memo.add(module)
-        if not module._modules:
-            yield prefix, module
-        else:
-            for name, submodule in module._modules.items():
-                if submodule is None:
-                    continue
-                submodule_prefix = prefix + ('_' if prefix else '') + name
-                for m in _get_leaf_modules(submodule, memo, submodule_prefix):
-                    yield m
+from detection.anchor_generator import AnchorGenerator
 
 
 class DetectorBuilder(object):
@@ -164,15 +148,14 @@ class DetectorBuilder(object):
         priors = []
         for i, (ratios, step, num_branches) in enumerate(zip(self.aspect_ratios, self.steps, self.num_branches)):
             if self.scales is not None:
-                priors.append(AnchorGenerator(ratios,
-                                              min_scale=self.scales[i],
-                                              max_scale=self.scales[i + 1],
-                                              step=step,
-                                              num_branches=num_branches))
+                kwargs = {
+                    'min_scale': self.scales[i],
+                    'max_scale': self.scales[i + 1]
+                }
             else:
-                priors.append(AnchorGenerator(ratios,
-                                              min_size=self.sizes[i],
-                                              max_size=self.sizes[i + 1],
-                                              step=step,
-                                              num_branches=num_branches))
+                kwargs = {
+                    'min_size': self.sizes[i],
+                    'max_size': self.sizes[i + 1]
+                }
+            priors.append(AnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
         return priors

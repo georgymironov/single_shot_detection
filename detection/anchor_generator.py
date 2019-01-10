@@ -2,10 +2,9 @@ import functools
 import math
 
 import torch
-import torch.nn as nn
 
 
-class AnchorGenerator(nn.Module):
+class AnchorGenerator(object):
     def __init__(self,
                  aspect_ratios,
                  min_scale=None,
@@ -79,7 +78,7 @@ class AnchorGenerator(nn.Module):
 
         return boxes
 
-    def forward(self, img, feature_map):
+    def generate(self, img, feature_map):
         """
         Args:
             img: torch.tensor(:shape [Batch, Channels, Height, Width])
