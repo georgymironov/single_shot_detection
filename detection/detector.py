@@ -40,24 +40,29 @@ class Detector(nn.Module):
         locs = []
         priors = []
 
-        sources, x = get_multiple_outputs(self.features, img, self.source_layers)
+        with torch.jit.scope('Sequential[features]'):
+            sources, x = get_multiple_outputs(self.features, img, self.source_layers)
 
-        for layer in self.extras:
-            x = layer(x)
-            sources.append(x)
+        with torch.jit.scope('Sequential[extras]'):
+            for i, layer in enumerate(self.extras):
+                with torch.jit.scope(f'_item[{i}]'):
+                    x = layer(x)
+                sources.append(x)
 
-        for head, source, prior in zip(self.heads, sources, self.priors):
-            classes.append(
-                head['class'](source)
-                    .permute((0, 2, 3, 1))
-                    .contiguous()
-                    .view(source.size(0), -1, self.num_classes))
-
-            locs.append(
-                head['loc'](source)
-                    .permute((0, 2, 3, 1))
-                    .contiguous()
-                    .view(source.size(0), -1, 4))
+        for i, (head, source, prior) in enumerate(zip(self.heads, sources, self.priors)):
+            with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):
+                with torch.jit.scope(f'_item[class]'):
+                    classes.append(
+                        head['class'](source)
+                            .permute((0, 2, 3, 1))
+                            .contiguous()
+                            .view(source.size(0), -1, self.num_classes))
+                with torch.jit.scope(f'_item[loc]'):
+                    locs.append(
+                        head['loc'](source)
+                            .permute((0, 2, 3, 1))
+                            .contiguous()
+                            .view(source.size(0), -1, 4))
 
             if self.generate_priors:
                 priors.append(prior.generate(img, source).view(-1, 4))

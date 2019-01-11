@@ -10,6 +10,7 @@ import torch
 import bf
 from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
+from bf.training.prunner import Prunner
 from bf.utils.config_wrapper import ConfigWrapper
 from bf.utils import dataset_utils
 from detection.init import init as init_detection
@@ -104,6 +105,13 @@ if __name__ == '__main__':
                 for i, x in enumerate(optimizer.param_groups):
                     writer.add_scalar(f'lr/Learning Rate {i}', x['lr'], trainer.global_step)
 
+        if 'prunner' in cfg.train:
+            prunner = Prunner(detector.model, ['features', 'extras'])
+
+            @trainer.on('epoch_start')
+            def prune(*args, **kwargs):
+                prunner.prune()
+
         if state:
             print(f'>> Resuming from: step: {state["global_step"]}, epoch: {state["epoch"]}')
             trainer.resume(initial_step=state['global_step'] + 1, initial_epoch=state['epoch'] + 1)
@@ -133,3 +141,5 @@ if __name__ == '__main__':
 
         cap.release()
         cv2.destroyAllWindows()
+    elif 'embed' in args.phases:
+        import IPython; IPython.embed()

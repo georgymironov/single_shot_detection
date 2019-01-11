@@ -1,10 +1,14 @@
+import torch
+
+
 def get_multiple_outputs(model, input_, output_layers):
     x = input_
     output_layer_idx = 0
     outputs = []
 
     for i, layer in enumerate(model):
-        x = layer(x)
+        with torch.jit.scope(f'_item[{i}]'):
+            x = layer(x)
         output_layer = output_layers[output_layer_idx]
 
         if isinstance(output_layer, int):
@@ -24,3 +28,27 @@ def get_multiple_outputs(model, input_, output_layers):
                 output_layer_idx += 1
 
     return outputs, x
+
+def get_leaf_modules(module, memo=None, prefix=''):
+    if memo is None:
+        memo = set()
+    if module not in memo:
+        memo.add(module)
+        if not module._modules:
+            yield prefix, module
+        else:
+            for name, submodule in module._modules.items():
+                if submodule is None:
+                    continue
+                submodule_prefix = prefix + ('.' if prefix else '') + name
+                for m in get_leaf_modules(submodule, memo, submodule_prefix):
+                    yield m
+
+def get_onnx_trace(model, input_=None):
+    if input_ is None:
+        input_ = torch.ones((2, 3, 224, 224), dtype=torch.float)
+    device = next(model.parameters()).device
+    input_ = input_.to(device)
+    trace, _ = torch.jit.get_trace_graph(model, input_)
+    torch.onnx._optimize_trace(trace, torch.onnx.OperatorExportTypes.ONNX)
+    return trace

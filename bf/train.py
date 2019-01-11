@@ -97,6 +97,8 @@ class Trainer(EventEmitter):
             self.state['epoch'] = epoch
             epoch_state = {}
 
+            self.emit('epoch_start', global_state=self.state)
+
             for phase in self.phases:
                 if phase == 'val' and (epoch + 1) % self.eval_every != 0:
                     continue
