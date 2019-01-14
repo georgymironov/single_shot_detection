@@ -93,12 +93,17 @@ class Detector(nn.Module):
 
 
 class DetectorWrapper(object):
-    def __init__(self, detector, postprocessor):
+    def __init__(self, detector, postprocessor, preprocess=None):
         self.device = next(detector.parameters()).device
         self.model = detector
         self.postprocessor = postprocessor
+        self.preprocess = preprocess
 
-    def predict(self, input_):
+    def predict_single(self, input_):
+        if self.preprocess is not None:
+            input_ = self.preprocess(input_)
+        if input_.dim() == 3:
+            input_ = input_.unsqueeze(0)
         *prediction, priors = self.model(input_.to(self.device))
         prediction = [x.detach() for x in prediction]
-        return self.postprocessor.postprocess(prediction, priors)
+        return self.postprocessor.postprocess(prediction, priors)[0]

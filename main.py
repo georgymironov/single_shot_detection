@@ -59,6 +59,8 @@ if __name__ == '__main__':
                                                             state=state)
     print(detector.model)
 
+    detector.preprocess = lambda img: preprocess((img, None))[0]
+
     if 'val' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
                                             class_labels=dataset['val'].class_labels,
@@ -122,21 +124,24 @@ if __name__ == '__main__':
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
         evaluator.run(dataloader['val'])
     elif 'test' in args.phases:
-        cap = cv2.VideoCapture(args.video)
-        cv2.namedWindow('image', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('image', *cfg.input_size)
-
         detector.model.eval()
+
+        cap = cv2.VideoCapture(args.video)
+        cv2.namedWindow('image')
 
         while cap.isOpened():
             _, frame = cap.read()
-            frame = cv2.resize(frame, cfg.input_size)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            input_ = preprocess((rgb, None))[0]
 
-            prediction = detector.predict(input_.unsqueeze(0))
+            ratio_w = rgb.shape[1] / cfg.input_size[0]
+            ratio_h = rgb.shape[0] / cfg.input_size[1]
+            resized = cv2.resize(rgb, cfg.input_size)
 
-            if dataset_utils.display(rgb, prediction[0]) & 0xFF == ord('q'):
+            prediction = detector.predict_single(resized)
+            prediction[..., [0, 2]] *= ratio_w
+            prediction[..., [1, 3]] *= ratio_h
+
+            if dataset_utils.display(rgb, prediction) & 0xFF == ord('q'):
                 break
 
         cap.release()
