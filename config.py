@@ -85,7 +85,7 @@ dataset = {
         'root': '{HOME}/documents/pascal-voc',
         'image_sets': [(2007, 'trainval'), (2012, 'trainval')]
     },
-    'val': {
+    'eval': {
         'name': 'Voc',
         'root': '{HOME}/documents/pascal-voc',
         'image_sets': [(2007, 'test')]
@@ -96,7 +96,7 @@ dataset = {
 #         'name': 'Coco',
 #         'root': '{HOME}/documents/coco2017'
 #     },
-#     'val': {
+#     'eval': {
 #         'name': 'Coco',
 #         'root': '{HOME}/documents/coco2017',
 #         'val': True

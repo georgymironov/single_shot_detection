@@ -21,7 +21,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='./config.py')
     parser.add_argument('--checkpoint', type=str, default='./experiments')
-    parser.add_argument('--phases', nargs='+', default=['train', 'val'])
+    parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
     parser.add_argument('--video', type=str)
     args = parser.parse_args()
 
@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     resize, augment, preprocess = data_builder.create_preprocessing(cfg.input_size, cfg.augmentations, cfg.preprocessing)
 
-    if 'train' in args.phases or 'val' in args.phases:
+    if 'train' in args.phases or 'eval' in args.phases:
         dataloader, dataset = data_builder.create_dataloaders(cfg.dataset,
                                                               cfg.batch_size,
                                                               resize,
@@ -61,9 +61,9 @@ if __name__ == '__main__':
 
     detector.preprocess = lambda img: preprocess((img, None))[0]
 
-    if 'val' in args.phases:
+    if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
-                                            class_labels=dataset['val'].class_labels,
+                                            class_labels=dataset['eval'].class_labels,
                                             iou_threshold=.5,
                                             voc=cfg.is_voc('val'))}
     else:
@@ -120,9 +120,9 @@ if __name__ == '__main__':
 
         trainer.run(dataloader, num_batches_per_epoch=cfg.train.get('num_batches_per_epoch'))
 
-    elif 'val' in args.phases:
+    elif 'eval' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
-        evaluator.run(dataloader['val'])
+        evaluator.run(dataloader['eval'])
     elif 'test' in args.phases:
         detector.model.eval()
 

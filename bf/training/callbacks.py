@@ -57,7 +57,7 @@ def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metr
         if phase == 'train' and not isinstance(scheduler_, schedulers.ReduceLROnPlateau):
             scheduler_.step()
             event_emitter.emit('scheduler_step')
-        if phase == 'val' and isinstance(scheduler_, schedulers.ReduceLROnPlateau):
+        if phase == 'eval' and isinstance(scheduler_, schedulers.ReduceLROnPlateau):
             scheduler_.step(phase_state[scheduler_metric])
             event_emitter.emit('scheduler_step')
 

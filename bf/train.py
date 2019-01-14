@@ -100,15 +100,15 @@ class Trainer(EventEmitter):
             self.emit('epoch_start', global_state=self.state)
 
             for phase in self.phases:
-                if phase == 'val' and (epoch + 1) % self.eval_every != 0:
+                if phase == 'eval' and (epoch + 1) % self.eval_every != 0:
                     continue
 
                 self.emit('phase_start', phase=phase, global_state=self.state)
 
                 if phase == 'train':
                     phase_state = self._train_epoch(dataloader['train'], num_batches=num_batches_per_epoch)
-                if phase == 'val':
-                    phase_state = self.evaluator.run(dataloader['val'])
+                if phase == 'eval':
+                    phase_state = self.evaluator.run(dataloader['eval'])
 
                 for k, v in phase_state.items():
                     epoch_state[f'{phase}_{k}'] = v

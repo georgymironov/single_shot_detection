@@ -51,7 +51,7 @@ def create_dataloaders(data_params,
     dataset = {}
     dataloader = {}
 
-    for phase in ['train', 'val']:
+    for phase in ['train', 'eval']:
         if phase in data_params:
             dataset[phase], dataloader[phase] = _build_dataloader(data_params[phase],
                                                                   phase,
