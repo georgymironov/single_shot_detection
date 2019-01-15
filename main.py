@@ -37,7 +37,7 @@ if __name__ == '__main__':
     use_cuda = cfg.use_gpu and torch.cuda.is_available()
     device = 'cuda:0' if use_cuda else 'cpu'
 
-    resize, augment, preprocess = data_builder.create_preprocessing(cfg.input_size, cfg.augmentations, cfg.preprocessing)
+    resize, augment, preprocess = data_builder.create_preprocessing(cfg.input_size, cfg.augmentations, cfg.preprocessing, 'box')
 
     if 'train' in args.phases or 'eval' in args.phases:
         dataloader, dataset = data_builder.create_dataloaders(cfg.dataset,
@@ -56,10 +56,9 @@ if __name__ == '__main__':
                                                             sampler_params=cfg.sampler,
                                                             loss_params=cfg.loss,
                                                             target_assigner_params=cfg.target_assigner,
-                                                            state=state)
+                                                            state=state,
+                                                            preprocess=preprocess)
     print(detector.model)
-
-    detector.preprocess = lambda img: preprocess((img, None))[0]
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
@@ -69,7 +68,9 @@ if __name__ == '__main__':
     else:
         metrics = {}
 
-    if 'train' in args.phases:
+    if 'embed' in args.phases:
+        import IPython; IPython.embed()
+    elif 'train' in args.phases:
         epochs = cfg.train['epochs']
         total_train_steps = len(dataloader['train']) // cfg.train['accumulation_steps']
 
@@ -146,5 +147,3 @@ if __name__ == '__main__':
 
         cap.release()
         cv2.destroyAllWindows()
-    elif 'embed' in args.phases:
-        import IPython; IPython.embed()

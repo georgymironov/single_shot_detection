@@ -1,26 +1,67 @@
-from abc import ABC, abstractmethod
 import functools
 import random
 
 import cv2
 import numpy as np
 import torch
-from torchvision.transforms import Compose
 
+import bf.preprocessing
 from . import functional
 
 
-class RandomTransform(ABC):
-    def __init__(self, p=.5):
-        self.p = p
+class Transform(object):
+    def __call__(self, sample):
+        return self.apply(sample)
 
-    @abstractmethod
     def apply(self, sample):
-        pass
+        raise NotImplementedError
+
+class DynamicTransform(object):
+    def __call__(self, sample):
+        transform_type = bf.preprocessing.transform_type
+        dummy_target = False
+
+        if transform_type == 'box':
+            self.target_functional = functional.box
+        elif transform_type == 'no_target':
+            if not isinstance(sample, tuple):
+                sample = sample, None
+                dummy_target = True
+            self.target_functional = bf.preprocessing.no_target
+        else:
+            raise ValueError(f'Unknown transform_type: {transform_type}')
+
+        result = self.apply(sample)
+        if dummy_target:
+            result = result[0]
+
+        return result
+
+    @property
+    def _no_target(self):
+        return self.target_functional is bf.preprocessing.no_target
+
+    def apply(self, sample):
+        raise NotImplementedError
+
+class RandomDynamicTransform(DynamicTransform):
+    def __init__(self, p=.5):
+        super(RandomDynamicTransform, self).__init__()
+        self.p = p
 
     def __call__(self, sample):
         if random.random() < self.p:
-            return self.apply(sample)
+            return super(RandomDynamicTransform, self).__call__(sample)
+        return sample
+
+class RandomTransform(Transform):
+    def __init__(self, p=.5):
+        super(RandomTransform, self).__init__()
+        self.p = p
+
+    def __call__(self, sample):
+        if random.random() < self.p:
+            return super(RandomTransform, self).__call__(sample)
         return sample
 
 class OneOf(object):
@@ -30,27 +71,27 @@ class OneOf(object):
     def __call__(self, sample):
         return self.transforms[random.randrange(0, len(self.transforms))](sample)
 
-class Identity(object):
-    def __call__(self, sample):
+class Identity(Transform):
+    def apply(self, sample):
         return sample
 
-class Resize(object):
+class Resize(DynamicTransform):
     def __init__(self, size):
+        super(Resize, self).__init__()
         self.size = size
-        self.target_fn = functional.box.resize
 
-    def __call__(self, sample):
-        return functional.resize(sample, self.size, target_fn=self.target_fn)
+    def apply(self, sample):
+        return functional.resize(sample, self.size, target_fn=self.target_functional.resize)
 
-class ToFloat(object):
-    def __call__(self, sample):
+class ToFloat(Transform):
+    def apply(self, sample):
         return sample[0].astype('float32'), sample[1]
 
-class ToUint8(object):
-    def __call__(self, sample):
+class ToUint8(Transform):
+    def apply(self, sample):
         return sample[0].astype('uint8'), sample[1]
 
-class RandomCrop(RandomTransform):
+class RandomCrop(RandomDynamicTransform):
     def __init__(self,
                  min_iou=.5,
                  aspect_ratio_range=(0.5, 2.),
@@ -60,21 +101,23 @@ class RandomCrop(RandomTransform):
                  **kwargs):
         super(RandomCrop, self).__init__(**kwargs)
 
+        self.min_iou = min_iou
         self.aspect_ratio_range = aspect_ratio_range
         self.area_range = area_range
-
-        self.target_fn = functools.partial(functional.box.crop,
-                                           min_iou=min_iou,
-                                           keep_criterion=keep_criterion,
-                                           min_objects_kept=min_objects_kept)
+        self.keep_criterion = keep_criterion
+        self.min_objects_kept = min_objects_kept
 
     def apply(self, sample):
+        target_fn = functools.partial(self.target_functional.crop,
+                                      min_iou=self.min_iou,
+                                      keep_criterion=self.keep_criterion,
+                                      min_objects_kept=self.min_objects_kept)
         return functional.random_crop(sample,
-                                      target_fn=self.target_fn,
+                                      target_fn=target_fn,
                                       aspect_ratio_range=self.aspect_ratio_range,
                                       area_range=self.area_range)
 
-class RandomExpand(RandomTransform):
+class RandomExpand(RandomDynamicTransform):
     def __init__(self,
                  aspect_ratio_range=(0.5, 2.0),
                  area_range=(1.0, 16.0),
@@ -83,29 +126,26 @@ class RandomExpand(RandomTransform):
 
         self.aspect_ratio_range = aspect_ratio_range
         self.area_range = area_range
-        self.target_fn = functional.box.expand
 
     def apply(self, sample):
         return functional.random_expand(sample,
-                                        target_fn=self.target_fn,
+                                        target_fn=self.target_functional.expand,
                                         aspect_ratio_range=self.aspect_ratio_range,
                                         area_range=self.area_range)
 
-class RandomHorizontalFlip(RandomTransform):
+class RandomHorizontalFlip(RandomDynamicTransform):
     def __init__(self, **kwargs):
         super(RandomHorizontalFlip, self).__init__(**kwargs)
-        self.target_fn = functional.box.horizontal_flip
 
     def apply(self, sample):
-        return functional.horizontal_flip(sample, target_fn=self.target_fn)
+        return functional.horizontal_flip(sample, target_fn=self.target_functional.horizontal_flip)
 
-class RandomVerticalFlip(RandomTransform):
+class RandomVerticalFlip(RandomDynamicTransform):
     def __init__(self, **kwargs):
         super(RandomVerticalFlip, self).__init__(**kwargs)
-        self.target_fn = functional.box.vertical_flip
 
     def apply(self, sample):
-        return functional.vertical_flip(sample, target_fn=self.target_fn)
+        return functional.vertical_flip(sample, target_fn=self.target_functional.vertical_flip)
 
 class RandomAdjustBrightness(RandomTransform):
     def __init__(self, max_brightness_delta, **kwargs):
@@ -134,13 +174,13 @@ class RandomAdjustContrast(RandomTransform):
 
         return img, target
 
-class RandomAdjustHueSaturation(object):
+class RandomAdjustHueSaturation(Transform):
     def __init__(self, max_hue_delta=None, saturation_delta_range=None, p=.5):
         self.p = p
         self.max_hue_delta = max_hue_delta
         self.saturation_delta_range = saturation_delta_range
 
-    def __call__(self, sample):
+    def apply(self, sample):
         adjust_hue = self.max_hue_delta and random.random() < self.p
         adjust_saturation = self.saturation_delta_range and random.random() < self.p
 
@@ -171,11 +211,11 @@ class RandomAdjustHueSaturation(object):
 
         return img, target
 
-class ToFloatTensor(object):
+class ToFloatTensor(DynamicTransform):
     def __init__(self, normalize=False):
         self.normalize = normalize
 
-    def __call__(self, sample):
+    def apply(self, sample):
         img, target = sample
 
         img = torch.from_numpy(img.transpose((2, 0, 1))).float()
@@ -183,14 +223,15 @@ class ToFloatTensor(object):
         if self.normalize:
             img /= 255.
 
-        if isinstance(target, np.ndarray):
-            target = torch.from_numpy(target)
-        elif isinstance(target, list):
-            target = torch.tensor(target, dtype=torch.float32)
+        if not self._no_target:
+            if isinstance(target, np.ndarray):
+                target = torch.from_numpy(target)
+            elif isinstance(target, list):
+                target = torch.tensor(target, dtype=torch.float32)
 
         return img, target
 
-class Normalize(object):
+class Normalize(DynamicTransform):
     def __init__(self, mean=0.0, std=1.0):
         if isinstance(mean, list):
             mean = torch.tensor(mean, dtype=torch.float32).view(-1, 1, 1)
@@ -201,7 +242,7 @@ class Normalize(object):
         self.mean = mean
         self.std = std
 
-    def __call__(self, samples):
+    def apply(self, samples):
         img, target = samples
         assert img.dtype in [torch.float32]
         img -= self.mean

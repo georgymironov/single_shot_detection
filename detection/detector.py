@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import bf.preprocessing
 from bf.utils.torch_utils import get_multiple_outputs
 
 
@@ -101,7 +102,8 @@ class DetectorWrapper(object):
 
     def predict_single(self, input_):
         if self.preprocess is not None:
-            input_ = self.preprocess(input_)
+            with bf.preprocessing.set_transform_type('no_target'):
+                input_ = self.preprocess(input_)
         if input_.dim() == 3:
             input_ = input_.unsqueeze(0)
         *prediction, priors = self.model(input_.to(self.device))

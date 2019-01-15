@@ -19,7 +19,8 @@ def init(device,
          loss_params,
          sampler_params,
          target_assigner_params,
-         state={}):
+         state={},
+         preprocess=None):
     base = base_builder.create_base(model_params)
 
     kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
@@ -44,7 +45,7 @@ def init(device,
     postprocessor = Postprocessor(box_coder, **postprocess_params)
     target_assigner = TargetAssigner(box_coder, **target_assigner_params)
 
-    detector_wrapper = DetectorWrapper(detector, postprocessor)
+    detector_wrapper = DetectorWrapper(detector, postprocessor, preprocess)
 
     def init_epoch_state():
         return {

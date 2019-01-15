@@ -1,15 +1,18 @@
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from torchvision.transforms import Compose
 
 import bf.datasets
+import bf.preprocessing
 from bf.preprocessing import transforms
 
 
-def create_preprocessing(input_size, augmentations, preprocessing):
-    resize = transforms.Resize(input_size)
+def create_preprocessing(input_size, augmentations, preprocessing, transform_type):
+    bf.preprocessing.set_transform_type(transform_type)
+    resize = bf.preprocessing.transforms.Resize(input_size)
     augment, preprocess = [
-        transforms.Compose([getattr(transforms, x['name'])(**x.get('args', {})) for x in transform_set])
+        Compose([getattr(bf.preprocessing.transforms, x['name'])(**x.get('args', {})) for x in transform_set])
         for transform_set in (augmentations, preprocessing)
     ]
     return resize, augment, preprocess
