@@ -1,3 +1,5 @@
+import functools
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,6 +16,7 @@ class Detector(nn.Module):
                  heads,
                  priors,
                  source_layers,
+                 scores_activation,
                  generate_priors=True):
         super(Detector, self).__init__()
 
@@ -24,6 +27,7 @@ class Detector(nn.Module):
         self.priors = priors
         self.source_layers = source_layers
         self.generate_priors = generate_priors
+        self.scores_activation = functools.partial(getattr(F, scores_activation), dim=-1)
 
         self.init()
 
@@ -37,7 +41,7 @@ class Detector(nn.Module):
                 torch.tensor(:shape [Batch, AnchorBoxes, 4])
                 torch.tensor(:shape [AnchorBoxes, 4])
         """
-        classes = []
+        scores = []
         locs = []
         priors = []
 
@@ -53,7 +57,7 @@ class Detector(nn.Module):
         for i, (head, source, prior) in enumerate(zip(self.heads, sources, self.priors)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):
                 with torch.jit.scope(f'_item[class]'):
-                    classes.append(
+                    scores.append(
                         head['class'](source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
@@ -68,18 +72,18 @@ class Detector(nn.Module):
             if self.generate_priors:
                 priors.append(prior.generate(img, source).view(-1, 4))
 
-        classes = torch.cat(classes, dim=1)
+        scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
 
         if self.generate_priors:
             priors = torch.cat(priors, dim=0)
 
-        classes = F.log_softmax(classes, dim=-1)
+        scores = self.scores_activation(scores)
 
         if self.generate_priors:
-            return classes, locs, priors
+            return scores, locs, priors
         else:
-            return classes, locs
+            return scores, locs
 
     @staticmethod
     def init_layer(layer):

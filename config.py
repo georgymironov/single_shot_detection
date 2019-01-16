@@ -13,7 +13,8 @@ model = {
         'min_scale': 0.1,
         'max_scale': 1.05,
         'num_scales': 6,
-        'aspect_ratios': [[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2
+        'aspect_ratios': [[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2,
+        'scores_activation': 'log_softmax'
     }
 }
 
