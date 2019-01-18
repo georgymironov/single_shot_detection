@@ -13,9 +13,24 @@ class Postprocessor(object):
         self.max_total = max_total
 
     def postprocess(self, prediction, priors):
+        """
+        Args:
+            prediction: tuple of
+                torch.tensor(:shape [Batch, AnchorBoxes * Classes])
+                torch.tensor(:shape [Batch, AnchorBoxes * 4])
+            priors: torch.tensor(:shape [AnchorBoxes, 4]
+        Returns:
+            processed: list(:len Batch) of torch.tensor(:shape [Boxes_i, 6] ~ {[0-3] - box, [4] - class, [5] - score})
+        """
         b_scores, b_boxes = prediction
+
+        batch_size = b_scores.size(0)
+        num_priors = priors.size(0)
+
+        b_scores = b_scores.view(batch_size, num_priors, -1)
+        b_boxes = b_boxes.view(batch_size, num_priors, 4)
+
         num_classes = b_scores.size(-1)
-        assert b_scores.dim() == 3
 
         b_scores.exp_()
         b_scores = b_scores.cpu()

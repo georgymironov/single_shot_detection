@@ -28,19 +28,24 @@ class MultiboxLoss(nn.Module):
         """
         Args:
             pred: tuple of
-                torch.tensor(:shape [Batch, AnchorBoxes, Classes])
-                torch.tensor(:shape [Batch, AnchorBoxes, 4])
-                torch.tensor(:shape [AnchorBoxes, 4])
+                torch.tensor(:shape [Batch, AnchorBoxes * Classes])
+                torch.tensor(:shape [Batch, AnchorBoxes * 4])
             target: tuple of
-                torch.tensor(:shape [Batch, AnchorBoxes, 4])
                 torch.tensor(:shape [Batch, AnchorBoxes])
+                torch.tensor(:shape [Batch, AnchorBoxes, 4])
         Returns:
             losses: tuple(float, float)
         """
         classes, locs = pred
-        batch_size = classes.size(0)
-        num_classes = classes.size(2)
         target_classes, target_locs = target
+
+        batch_size = classes.size(0)
+        num_priors = target_classes.size(1)
+
+        classes = classes.view(batch_size, num_priors, -1)
+        locs = locs.view(batch_size, num_priors, 4)
+
+        num_classes = classes.size(2)
 
         classes = classes.view(-1, num_classes)
         class_loss = self.classification_loss(classes, target_classes.view(-1))

@@ -37,8 +37,8 @@ class Detector(nn.Module):
             img: torch.tensor(:shape [Batch, Channel, Height, Width])
         Returns:
             prediction: tuple of
-                torch.tensor(:shape [Batch, AnchorBoxes, Classes])
-                torch.tensor(:shape [Batch, AnchorBoxes, 4])
+                torch.tensor(:shape [Batch, AnchorBoxes * Classes])
+                torch.tensor(:shape [Batch, AnchorBoxes * 4])
                 torch.tensor(:shape [AnchorBoxes, 4])
         """
         scores = []
@@ -61,24 +61,26 @@ class Detector(nn.Module):
                         head['class'](source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
-                            .view(source.size(0), -1, self.num_classes))
+                            .view(source.size(0), -1))
                 with torch.jit.scope(f'_item[loc]'):
                     locs.append(
                         head['loc'](source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
-                            .view(source.size(0), -1, 4))
+                            .view(source.size(0), -1))
 
             if self.generate_priors:
-                priors.append(prior.generate(img, source).view(-1, 4))
+                priors.append(prior.generate(img, source).view(-1))
 
         scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
 
         if self.generate_priors:
-            priors = torch.cat(priors, dim=0)
+            priors = torch.cat(priors, dim=0).view(-1, 4)
 
+        scores = scores.view(img.size(0), -1, self.num_classes)
         scores = self.scores_activation(scores)
+        scores = scores.view(img.size(0), -1)
 
         if self.generate_priors:
             return scores, locs, priors
