@@ -11,7 +11,8 @@ class set_transform_type(object):
         pass
 
     def __exit__(self, *args):
-        self.transform_type = self.prev
+        global transform_type
+        transform_type = self.prev
 
 class no_target(object):
     def __getitem__(self, *args):

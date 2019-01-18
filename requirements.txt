@@ -1,6 +1,7 @@
 jpeg4py
 numpy
 pandas
+onnx
 tensorboardX
 torch
 torchvision

@@ -26,7 +26,6 @@ class DetectorBuilder(object):
                  last_feature_layer=None,
                  depth_multiplier=1.0,
                  use_depthwise=False,
-                 scores_activation='log_softmax',
                  activation={'name': 'ReLU', 'args': {'inplace': True}},
                  batch_norm={}):
 
@@ -67,7 +66,6 @@ class DetectorBuilder(object):
         self.source_layers = source_layers
         self.extra_layer_depth = extra_layer_depth
         self.last_feature_layer = last_feature_layer
-        self.scores_activation = scores_activation
         self.activation_params = activation
         self.activation = functools.partial(getattr(nn, activation['name']), **activation['args'])
         self.batch_norm_params = batch_norm
@@ -88,8 +86,7 @@ class DetectorBuilder(object):
                         extras,
                         heads,
                         priors,
-                        self.source_layers,
-                        self.scores_activation)
+                        self.source_layers)
 
     def get_source_out_channels(self):
         dummy = torch.ones((1, 3, 300, 300), dtype=torch.float)

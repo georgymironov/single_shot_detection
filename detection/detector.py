@@ -1,10 +1,9 @@
-import functools
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 import bf.preprocessing
+import bf.utils
 from bf.utils.torch_utils import get_multiple_outputs
 
 
@@ -15,9 +14,7 @@ class Detector(nn.Module):
                  extras,
                  heads,
                  priors,
-                 source_layers,
-                 scores_activation,
-                 generate_priors=True):
+                 source_layers):
         super(Detector, self).__init__()
 
         self.num_classes = num_classes
@@ -26,8 +23,6 @@ class Detector(nn.Module):
         self.heads = heads
         self.priors = priors
         self.source_layers = source_layers
-        self.generate_priors = generate_priors
-        self.scores_activation = functools.partial(getattr(F, scores_activation), dim=-1)
 
         self.init()
 
@@ -69,20 +64,20 @@ class Detector(nn.Module):
                             .contiguous()
                             .view(source.size(0), -1))
 
-            if self.generate_priors:
+            if not bf.utils.onnx_exporter.is_exporting():
                 priors.append(prior.generate(img, source).view(-1))
 
         scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
 
-        if self.generate_priors:
+        if not bf.utils.onnx_exporter.is_exporting():
             priors = torch.cat(priors, dim=0).view(-1, 4)
 
         scores = scores.view(img.size(0), -1, self.num_classes)
-        scores = self.scores_activation(scores)
+        scores = F.softmax(scores, dim=-1) if bf.utils.onnx_exporter.is_exporting() else F.log_softmax(scores, dim=-1)
         scores = scores.view(img.size(0), -1)
 
-        if self.generate_priors:
+        if not bf.utils.onnx_exporter.is_exporting():
             return scores, locs, priors
         else:
             return scores, locs

@@ -12,7 +12,7 @@ from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
 from bf.training.prunner import Prunner
 from bf.utils.config_wrapper import ConfigWrapper
-from bf.utils import dataset_utils
+from bf.utils import dataset_utils, onnx_exporter
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
 
@@ -69,7 +69,8 @@ if __name__ == '__main__':
         metrics = {}
 
     if 'embed' in args.phases:
-        import IPython; IPython.embed()
+        import IPython
+        IPython.embed()
     elif 'train' in args.phases:
         epochs = cfg.train['epochs']
         total_train_steps = len(dataloader['train']) // cfg.train['accumulation_steps']
@@ -147,3 +148,5 @@ if __name__ == '__main__':
 
         cap.release()
         cv2.destroyAllWindows()
+    elif 'export' in args.phases:
+        onnx_exporter.export(detector.model, torch.rand((1, 3, cfg.input_size[1], cfg.input_size[0])).to(device), 'model.onnx')
