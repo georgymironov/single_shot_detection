@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint', type=str, default='./experiments')
     parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
     parser.add_argument('--video', type=str)
+    parser.add_argument('--debug', action='store_true', default=False)
     args = parser.parse_args()
 
     cfg = helpers.load_config(args.config)
@@ -95,19 +96,21 @@ if __name__ == '__main__':
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
 
-        callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
-        callbacks.logger(trainer, checkpoint_dir)
-        writer = callbacks.tensorboard(trainer, checkpoint_dir)
+        if not args.debug:
+            callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
+            callbacks.logger(trainer, checkpoint_dir)
+            writer = callbacks.tensorboard(trainer, checkpoint_dir)
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)
 
             callbacks.scheduler(trainer, *scheduler)
 
-            @trainer.on('scheduler_step')
-            def log_lr(*args, **kwargs):
-                for i, x in enumerate(optimizer.param_groups):
-                    writer.add_scalar(f'lr/Learning Rate {i}', x['lr'], trainer.global_step)
+            if not args.debug:
+                @trainer.on('scheduler_step')
+                def log_lr(*args, **kwargs):
+                    for i, x in enumerate(optimizer.param_groups):
+                        writer.add_scalar(f'lr/Learning Rate {i}', x['lr'], trainer.global_step)
 
         if 'prunner' in cfg.train:
             prunner = Prunner(detector.model, ['features', 'extras'])

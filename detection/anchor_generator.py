@@ -14,20 +14,46 @@ class AnchorGenerator(object):
                  step=None,
                  offset=[.5, .5],
                  num_branches=1,
+                 flip=True,
                  clip=False):
         super(AnchorGenerator, self).__init__()
+
+        if max_scale is not None and min_scale is None:
+            raise ValueError('"max_scale" should be provided along with "min_scale"')
+
+        if max_size is not None and min_size is None:
+            raise ValueError('"max_size" should be provided along with "min_size"')
+
+        if min_scale is not None and min_size is not None:
+            raise ValueError('Either "min_scale" or "min_size" should be provided')
 
         self.min_scale = min_scale
         self.max_scale = max_scale
         self.min_size = min_size
         self.max_size = max_size
-        self.aspect_ratios = aspect_ratios
-        self.num_ratios = (len(aspect_ratios) + 1)
         self.num_branches = num_branches
-        self.num_boxes = self.num_ratios * num_branches
         self.clip = clip
         self.offset = offset
         self.step = step
+
+        self.aspect_ratios = []
+        for ar in aspect_ratios:
+            assert ar >= 1.0
+            self.aspect_ratios.append(ar)
+            if ar > 1.0 and flip:
+                self.aspect_ratios.append(1.0 / ar)
+
+        self.num_ratios = len(self.aspect_ratios)
+
+        if max_scale or max_size:
+            self.num_ratios += 1
+
+        self.num_boxes = self.num_ratios * num_branches
+
+        if self.min_size is not None and self.max_size is not None:
+            self.sizes = torch.linspace(self.min_size, self.max_size, self.num_branches + 1).unsqueeze(1).expand(-1, 2)
+        else:
+            self.scales = torch.linspace(self.min_scale, self.max_scale, self.num_branches + 1).unsqueeze(1)
 
     @functools.lru_cache()
     def _generate_anchors(self, img_size, feature_map_size):
@@ -47,10 +73,9 @@ class AnchorGenerator(object):
         hws = torch.empty((self.num_boxes, 2), dtype=torch.float32, device=device)
 
         if self.min_size is not None and self.max_size is not None:
-            sizes = torch.linspace(self.min_size, self.max_size, self.num_branches + 1).unsqueeze(1).expand(-1, 2)
+            sizes = self.sizes
         else:
-            scales = torch.linspace(self.min_scale, self.max_scale, self.num_branches + 1).unsqueeze(1)
-            sizes = torch.cat([scales * img_w, scales * img_h], dim=1)
+            sizes = torch.cat([self.scales * img_w, self.scales * img_h], dim=1)
 
         for j in range(self.num_branches):
             min_size = sizes[j]

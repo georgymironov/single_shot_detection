@@ -19,7 +19,7 @@ class DetectorBuilder(object):
                  sizes=None,
                  min_scale=None,
                  max_scale=None,
-                 aspect_ratios=[[1, 2, 0.5]] + [[1, 2, 0.5, 3, 0.3333]] * 3 + [[1, 2, 0.5]] * 2,
+                 aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
                  steps=None,
                  offsets=[0.5, 0.5],
                  num_branches=None,
@@ -69,8 +69,10 @@ class DetectorBuilder(object):
         self.activation_params = activation
         self.activation = functools.partial(getattr(nn, activation['name']), **activation['args'])
         self.batch_norm_params = batch_norm
-        self.num_boxes = [(len(ar) + 1) * b for ar, b in zip(aspect_ratios, num_branches)]
         self.source_out_channels = self.get_source_out_channels()
+
+        self.priors = self.get_priors()
+        self.num_boxes = [x.num_boxes for x in self.priors]
 
     def build(self):
         feature_layers = list(self.base.features.children())
@@ -79,13 +81,12 @@ class DetectorBuilder(object):
         features = nn.Sequential(*feature_layers)
         extras = self.get_extras()
         heads = self.get_heads()
-        priors = self.get_priors()
 
         return Detector(self.num_classes,
                         features,
                         extras,
                         heads,
-                        priors,
+                        self.priors,
                         self.source_layers)
 
     def get_source_out_channels(self):
