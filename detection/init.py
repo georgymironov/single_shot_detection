@@ -5,8 +5,8 @@ import torch
 from bf.builders import base_builder
 import detection.sampler
 from detection.box_coder import BoxCoder
-from detection.detector import DetectorWrapper
 from detection.detector_builder import DetectorBuilder
+from detection.detector_wrapper import DetectorWrapper
 from detection.losses.mutibox_loss import MultiboxLoss
 from detection.postprocessor import Postprocessor
 from detection.target_assigner import TargetAssigner
@@ -20,7 +20,8 @@ def init(device,
          sampler_params,
          target_assigner_params,
          state={},
-         preprocess=None):
+         preprocess=None,
+         resize=None):
     base = base_builder.create_base(model_params)
 
     kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
@@ -45,7 +46,7 @@ def init(device,
     postprocessor = Postprocessor(box_coder, **postprocess_params)
     target_assigner = TargetAssigner(box_coder, **target_assigner_params)
 
-    detector_wrapper = DetectorWrapper(detector, postprocessor, preprocess)
+    detector_wrapper = DetectorWrapper(detector, postprocessor, preprocess, resize)
 
     def init_epoch_state():
         return {

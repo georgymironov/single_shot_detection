@@ -12,6 +12,7 @@ from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
 from bf.training.prunner import Prunner
 from bf.utils.config_wrapper import ConfigWrapper
+from bf.utils.video_viewer import VideoViewer
 from bf.utils import dataset_utils, onnx_exporter
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
@@ -58,7 +59,8 @@ if __name__ == '__main__':
                                                             loss_params=cfg.loss,
                                                             target_assigner_params=cfg.target_assigner,
                                                             state=state,
-                                                            preprocess=preprocess)
+                                                            preprocess=preprocess,
+                                                            resize=resize)
     print(detector.model)
 
     if 'eval' in args.phases:
@@ -131,25 +133,8 @@ if __name__ == '__main__':
     elif 'test' in args.phases:
         detector.model.eval()
 
-        cap = cv2.VideoCapture(args.video)
-        cv2.namedWindow('image')
+        viewer = VideoViewer(args.video, detector)
+        viewer.run()
 
-        while cap.isOpened():
-            _, frame = cap.read()
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            ratio_w = rgb.shape[1] / cfg.input_size[0]
-            ratio_h = rgb.shape[0] / cfg.input_size[1]
-            resized = cv2.resize(rgb, cfg.input_size)
-
-            prediction = detector.predict_single(resized)
-            prediction[..., [0, 2]] *= ratio_w
-            prediction[..., [1, 3]] *= ratio_h
-
-            if dataset_utils.display(rgb, prediction) & 0xFF == ord('q'):
-                break
-
-        cap.release()
-        cv2.destroyAllWindows()
     elif 'export' in args.phases:
         onnx_exporter.export(detector.model, torch.rand((1, 3, cfg.input_size[1], cfg.input_size[0])).to(device), 'model.onnx')
