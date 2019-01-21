@@ -4,7 +4,6 @@ import functools
 import os
 import random
 
-import cv2
 import torch
 
 import bf
@@ -13,7 +12,7 @@ from bf.training import callbacks, helpers
 from bf.training.prunner import Prunner
 from bf.utils.config_wrapper import ConfigWrapper
 from bf.utils.video_viewer import VideoViewer
-from bf.utils import dataset_utils, onnx_exporter
+from bf.utils import onnx_exporter
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
 
