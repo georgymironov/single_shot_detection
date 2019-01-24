@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import functools
+import logging
 import os
 import random
 
@@ -29,6 +30,9 @@ if __name__ == '__main__':
     cfg = helpers.load_config(args.config)
     cfg = ConfigWrapper(cfg)
     cfg.set_phases(args.phases)
+
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
 
     state = helpers.load_checkpoint(args.checkpoint)
 
@@ -131,9 +135,7 @@ if __name__ == '__main__':
         evaluator.run(dataloader['eval'])
     elif 'test' in args.phases:
         detector.model.eval()
-
         viewer = VideoViewer(args.video, detector)
         viewer.run()
-
     elif 'export' in args.phases:
-        onnx_exporter.export(detector.model, torch.rand((1, 3, cfg.input_size[1], cfg.input_size[0])).to(device), 'model.onnx')
+        onnx_exporter.export(detector.model, cfg.input_size, 'model.onnx')
