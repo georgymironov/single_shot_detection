@@ -1,4 +1,4 @@
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 import random
 import re
 
@@ -19,7 +19,7 @@ class Critetion(object):
             name, module = item
             return any(name.startswith(p) for p in include_paths) and isinstance(module, nn.Conv2d)
 
-        self.modules = OrderedDict(filter(_include, model.named_modules()))
+        self.modules = dict(filter(_include, model.named_modules()))
 
     def get_path(self):
         raise NotImplementedError

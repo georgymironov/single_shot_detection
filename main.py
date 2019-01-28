@@ -13,9 +13,11 @@ from bf.training import callbacks, helpers
 from bf.training.prunner import Prunner
 from bf.utils.config_wrapper import ConfigWrapper
 from bf.utils.video_viewer import VideoViewer
-from bf.utils import onnx_exporter
+from bf.utils import mo_exporter, onnx_exporter
+
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
+from detection.tools import mo_add_output
 
 
 if __name__ == '__main__':
@@ -139,3 +141,5 @@ if __name__ == '__main__':
         viewer.run()
     elif 'export' in args.phases:
         onnx_exporter.export(detector.model, cfg.input_size, 'model.onnx')
+    elif 'export-mo' in args.phases:
+        mo_exporter.export(detector.model, cfg, 'model', folder='exported', postprocess=mo_add_output.add_output)

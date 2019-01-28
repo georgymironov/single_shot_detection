@@ -1,7 +1,10 @@
+BeautifulSoup4
 jpeg4py
+lxml
+networkx
 numpy
-pandas
 onnx
+pandas
 tensorboardX
 torch
 torchvision
