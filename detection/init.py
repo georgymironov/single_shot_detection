@@ -24,18 +24,22 @@ def init(device,
          resize=None):
     base = base_builder.create_base(model_params)
 
-    kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
-    detector = DetectorBuilder(base, **kwargs).build().to(device)
-
-    if 'weight' in model_params['detector']:
-        print(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
-        state_dict = detector.state_dict()
-        state_dict.update(torch.load(model_params['detector']['weight']))
-        detector.load_state_dict(state_dict)
-
     if 'model' in state:
-        print('===> Loading model weights from checkpoint')
-        detector.load_state_dict(state['model'])
+        print('===> Restoring model from checkpoint')
+        detector = state['model']
+    else:
+        kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
+        detector = DetectorBuilder(base, **kwargs).build().to(device)
+
+        if 'weight' in model_params['detector']:
+            print(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
+            state_dict = detector.state_dict()
+            state_dict.update(torch.load(model_params['detector']['weight']))
+            detector.load_state_dict(state_dict)
+
+        if 'model_dict' in state:
+            print('===> Loading model weights from checkpoint')
+            detector.load_state_dict(state['model_dict'])
 
     sampler = getattr(detection.sampler, sampler_params['name'])
     kwargs = {k: v for k, v in sampler_params.items() if k in sampler.__code__.co_varnames}

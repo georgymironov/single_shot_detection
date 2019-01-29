@@ -16,9 +16,9 @@ def create_optimizer(model,
     Optimizer = getattr(optimizers, optimizer_params['name'])
     kwargs = {k: v for k, v in optimizer_params.items() if k in Optimizer.__init__.__code__.co_varnames}
     optimizer = Optimizer(parameters, **kwargs)
-    if 'optimizer' in state:
+    if 'optimizer_dict' in state:
         print('===> Loading optimizer weights from checkpoint')
-        optimizer.load_state_dict(state['optimizer'])
+        optimizer.load_state_dict(state['optimizer_dict'])
 
     return optimizer
 

@@ -31,6 +31,7 @@ class Trainer(EventEmitter):
         self.state = {
             'epoch': 0,
             'global_step': 0,
+            'model': model
         }
 
         self.evaluator = bf.eval.Evaluator(model,
@@ -114,8 +115,8 @@ class Trainer(EventEmitter):
                     epoch_state[f'{phase}_{k}'] = v
 
                 if phase == 'train':
-                    self.state['model'] = self.model.state_dict()
-                    self.state['optimizer'] = self.optimizer.state_dict()
+                    self.state['model_dict'] = self.model.state_dict()
+                    self.state['optimizer_dict'] = self.optimizer.state_dict()
 
                 self.emit('phase_end', phase=phase, global_state=self.state, epoch_state=epoch_state, phase_state=phase_state)
 
