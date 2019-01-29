@@ -126,6 +126,11 @@ class Prunner(object):
             for output in node.outputs():
                 self.nodes[output.unique()] = node
 
+        self.output_nodes = defaultdict(set)
+        for node in graph.nodes():
+            for inp in node.inputs():
+                self.output_nodes[inp.unique()].add(node)
+
         self.node_paths = {_to_torch_path(x): x.output().unique()
                            for x in graph.nodes()
                            if x.kind() == 'onnx::Conv' and x.output().unique() not in ignore}
