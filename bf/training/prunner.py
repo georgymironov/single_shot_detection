@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 import random
 import re
 
@@ -100,18 +101,34 @@ class Prunner(object):
         self.trace = torch_utils.get_onnx_trace(model)  # writing to self to prevent deallocation
 
         graph = self.trace.graph()
-        self.nodes = dict()
 
+        self.output_nodes = defaultdict(set)
+        for node in graph.nodes():
+            for inp in node.inputs():
+                self.output_nodes[inp.unique()].add(node)
+
+        nodes = {}
+        ignore = []
+        for node in graph.nodes():
+            path = _to_torch_path(node)
+            if path not in nodes:
+                nodes[path] = node
+                continue
+
+            for output in node.outputs():
+                for affected in self.output_nodes[output.unique()]:
+                    for old_output, new_output in zip(node.outputs(), nodes[path].outputs()):
+                        affected.replaceInputWith(old_output, new_output)
+                ignore.append(output.unique())
+
+        self.nodes = {}
         for node in graph.nodes():
             for output in node.outputs():
                 self.nodes[output.unique()] = node
 
-        self.node_paths = {_to_torch_path(x): x.output().unique() for x in graph.nodes() if x.kind() == 'onnx::Conv'}
-        self.output_nodes = defaultdict(set)
-
-        for node in graph.nodes():
-            for inp in node.inputs():
-                self.output_nodes[inp.unique()].add(node)
+        self.node_paths = {_to_torch_path(x): x.output().unique()
+                           for x in graph.nodes()
+                           if x.kind() == 'onnx::Conv' and x.output().unique() not in ignore}
 
     def get_affected_nodes(self, unique, type_='out', memo=None):
         if memo is None:
@@ -163,7 +180,7 @@ class Prunner(object):
 
         print(f'Pruning: {path} #{index}')
 
-        print('Affected nodes:')
+        logging.debug('Affected nodes:')
         for path, channel_type in self.get_affected_nodes(self.node_paths[path], 'out'):
             module = self.modules[path]
             if isinstance(module, nn.Conv2d):
@@ -175,4 +192,4 @@ class Prunner(object):
                 _remove_batchnorm_channel(module, index)
             else:
                 raise TypeError(f'Unsupported layer type: {type(module)}')
-            print(f'{path} #{index} {channel_type}')
+            logging.debug(f'{path} #{index} {channel_type}')

@@ -23,10 +23,12 @@ from detection.tools import mo_add_output
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='./config.py')
-    parser.add_argument('--checkpoint', type=str, default='./experiments')
+    parser.add_argument('--save_dir', type=str, default='./experiments')
+    parser.add_argument('--checkpoint_dir', type=str)
     parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
     parser.add_argument('--video', type=str)
-    parser.add_argument('--debug', action='store_true', default=False)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--new_checkpoint', action='store_true')
     args = parser.parse_args()
 
     cfg = helpers.load_config(args.config)
@@ -36,7 +38,7 @@ if __name__ == '__main__':
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    state = helpers.load_checkpoint(args.checkpoint)
+    state = helpers.load_checkpoint(args.checkpoint_dir)
 
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -88,10 +90,10 @@ if __name__ == '__main__':
         optimizer = train_builder.create_optimizer(detector.model, cfg.train['optimizer'], state=state)
         print(optimizer)
 
-        if state:
-            checkpoint_dir = args.checkpoint
+        if state and not args.new_checkpoint:
+            checkpoint_dir = args.checkpoint_dir
         else:
-            checkpoint_dir = os.path.join(args.checkpoint, f'{datetime.datetime.today():%F-%H%M%S}')
+            checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
         trainer = bf.train.Trainer(epochs,
                                    args.phases,

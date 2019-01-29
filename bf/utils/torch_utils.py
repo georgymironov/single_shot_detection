@@ -1,5 +1,7 @@
 import torch
 
+from . import onnx_exporter
+
 
 def get_multiple_outputs(model, input_, output_layers):
     x = input_
@@ -17,13 +19,15 @@ def get_multiple_outputs(model, input_, output_layers):
                 output_layer_idx += 1
         elif isinstance(output_layer, list):
             if i == output_layer[0]:
-                y = x
-                for name, child in model[i + 1].named_children():
-                    y = child(y)
-                    if name == output_layer[1]:
-                        break
-                else:
-                    raise ValueError(f'Wrong layer {output_layer}')
+                with torch.jit.scope(f'_item[{i+1}]'):
+                    y = x
+                    for name, child in model[i + 1].named_children():
+                        with torch.jit.scope(f'{type(child).__name__}[{name}]'):
+                            y = child(y)
+                        if name == output_layer[1]:
+                            break
+                    else:
+                        raise ValueError(f'Wrong layer {output_layer}')
                 outputs.append(y)
                 output_layer_idx += 1
 
@@ -45,10 +49,11 @@ def get_leaf_modules(module, memo=None, prefix=''):
                     yield m
 
 def get_onnx_trace(model, input_=None):
-    if input_ is None:
-        input_ = torch.ones((2, 3, 224, 224), dtype=torch.float)
-    device = next(model.parameters()).device
-    input_ = input_.to(device)
-    trace, _ = torch.jit.get_trace_graph(model, input_)
-    torch.onnx._optimize_trace(trace, torch.onnx.OperatorExportTypes.ONNX)
-    return trace
+    with onnx_exporter.for_export():
+        if input_ is None:
+            input_ = torch.ones((2, 3, 224, 224), dtype=torch.float)
+        device = next(model.parameters()).device
+        input_ = input_.to(device)
+        trace, _ = torch.jit.get_trace_graph(model, input_)
+        torch.onnx._optimize_trace(trace, torch.onnx.OperatorExportTypes.ONNX)
+        return trace
