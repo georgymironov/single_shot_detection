@@ -108,7 +108,7 @@ class Prunner(object):
                 self.output_nodes[inp.unique()].add(node)
 
         nodes = {}
-        ignore = []
+        self.ignore = []
         for node in graph.nodes():
             path = _to_torch_path(node)
             if path not in nodes:
@@ -119,7 +119,7 @@ class Prunner(object):
                 for affected in self.output_nodes[output.unique()]:
                     for old_output, new_output in zip(node.outputs(), nodes[path].outputs()):
                         affected.replaceInputWith(old_output, new_output)
-                ignore.append(output.unique())
+                self.ignore.append(output.unique())
 
         self.nodes = {}
         for node in graph.nodes():
@@ -133,9 +133,12 @@ class Prunner(object):
 
         self.node_paths = {_to_torch_path(x): x.output().unique()
                            for x in graph.nodes()
-                           if x.kind() == 'onnx::Conv' and x.output().unique() not in ignore}
+                           if x.kind() == 'onnx::Conv' and x.output().unique() not in self.ignore}
 
     def get_affected_nodes(self, unique, type_='out', memo=None):
+        if unique in self.ignore:
+            return
+
         if memo is None:
             memo = set()
         node = self.nodes[unique]
