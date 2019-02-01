@@ -10,8 +10,8 @@ from bf.utils import torch_utils
 
 
 class Critetion(object):
-    def __init__(self, model, include_paths=None):
-        self.model = model
+    def __init__(self, modules, connected=None, include_paths=None):
+        self.connected = connected or {}
 
         if not include_paths:
             include_paths = []
@@ -20,20 +20,41 @@ class Critetion(object):
             name, module = item
             return any(name.startswith(p) for p in include_paths) and isinstance(module, nn.Conv2d)
 
-        self.modules = dict(filter(_include, model.named_modules()))
+        self.modules = dict(filter(_include, modules))
 
-    def get_path(self):
+    def get_path(self, num):
         raise NotImplementedError
 
 class RandomSampling(Critetion):
-    def get_path(self):
-        index = random.randint(0, sum(x.out_channels for x in self.modules.values()))
+    def get_path(self, num=1):
+        total_channels = sum(x.out_channels for x in self.modules.values())
+        indexes = sorted(random.randint(0, total_channels) for _ in range(num))
         cumsum = 0
+        i = 0
         for name, module in self.modules.items():
-            if cumsum + module.out_channels > index:
-                return name, index - cumsum
+            while cumsum + module.out_channels > indexes[i]:
+                yield name, indexes[i] - cumsum
+                i += 1
+                if num == i:
+                    return
             cumsum += module.out_channels
 
+class MinL1Norm(Critetion):
+    def get_path(self, num=1):
+        norm = {k: v.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1) for k, v in self.modules.items()}
+        norm = {k: torch.max(torch.cat([norm[x] for x in self.connected[k]], dim=1), dim=1)[0] for k, v in norm.items()}
+        norm = torch.cat([x for x in norm.values()])
+        _, indexes = torch.topk(norm, num, largest=False, sorted=True)
+
+        cumsum = 0
+        i = 0
+        for name, module in self.modules.items():
+            while cumsum + module.out_channels > indexes[i]:
+                yield name, indexes[i] - cumsum
+                i += 1
+                if num == i:
+                    return
+            cumsum += module.out_channels
 
 def _to_torch_path(onnx_node):
     return '.'.join(re.findall(r'\[(.*?)\]', onnx_node.scopeName()))
@@ -44,13 +65,22 @@ def _is_depthwise_conv_onnx(onnx_node):
     return next(onnx_node.inputs()).type().sizes()[1] == onnx_node.output().type().sizes()[1] == onnx_node['group']
 
 def _is_depthwise_conv(module):
-    return module.out_channels == module.in_channels == module.groups
+    return isinstance(module, nn.Conv2d) and module.out_channels == module.in_channels == module.groups
 
 def _mask_parameter(parameter, mask):
     if parameter is not None:
         parameter.data = parameter.data[mask]
         if parameter.grad is not None:
             parameter.grad = parameter.grad[mask]
+
+def _remove_depthwise_conv_channel(module, index):
+    mask = torch.ones(module.out_channels, dtype=torch.uint8)
+    mask[index] = 0
+
+    _mask_parameter(module.weight, mask)
+    _mask_parameter(module.bias, mask)
+
+    module.out_channels = module.in_channels = module.groups = module.out_channels - 1
 
 def _remove_conv_out_channel(module, index):
     mask = torch.ones(module.out_channels, dtype=torch.uint8)
@@ -59,24 +89,17 @@ def _remove_conv_out_channel(module, index):
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
 
-    if _is_depthwise_conv(module):
-        module.out_channels = module.in_channels = module.groups = module.out_channels - 1
-    else:
-        module.out_channels = module.out_channels - 1
+    module.out_channels = module.out_channels - 1
 
 def _remove_conv_in_channel(module, index):
     mask = torch.ones(module.in_channels, dtype=torch.uint8)
     mask[index] = 0
 
-    if _is_depthwise_conv(module):
-        _mask_parameter(module.weight, mask)
-        _mask_parameter(module.bias, mask)
-        module.out_channels = module.in_channels = module.groups = module.out_channels - 1
-    else:
-        module.weight.data = module.weight.data[:, mask]
-        if module.weight.grad is not None:
-            module.weight.grad = module.weight.grad[:, mask]
-        module.in_channels = module.in_channels - 1
+    module.weight.data = module.weight.data[:, mask]
+    if module.weight.grad is not None:
+        module.weight.grad = module.weight.grad[:, mask]
+
+    module.in_channels = module.in_channels - 1
 
 def _remove_batchnorm_channel(module, index):
     mask = torch.ones(module.num_features, dtype=torch.uint8)
@@ -93,10 +116,10 @@ class Prunner(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
     _affected_out_node_types = ['onnx::Conv']
 
-    def __init__(self, model, include_paths=None, criterion='RandomSampling'):
+    def __init__(self, model, include_paths=None, criterion='RandomSampling', num=1):
+        self.num = num
         self.model = model
         self.modules = dict(torch_utils.get_leaf_modules(model))
-        self.criterion = globals().get(criterion)(model, include_paths)
 
         self.trace = torch_utils.get_onnx_trace(model)  # writing to self to prevent deallocation
 
@@ -134,6 +157,14 @@ class Prunner(object):
         self.node_paths = {_to_torch_path(x): x.output().unique()
                            for x in graph.nodes()
                            if x.kind() == 'onnx::Conv' and x.output().unique() not in self.ignore}
+
+        self.affected = {k: list(self.get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
+
+        connected = {k: [x[0] for x in v
+                         if isinstance(self.modules[x[0]], nn.Conv2d) and x[1] == 'out']
+                     for k, v in self.affected.items()}
+
+        self.criterion = globals().get(criterion)(model.named_modules(), connected, include_paths)
 
     def get_affected_nodes(self, unique, type_='out', memo=None):
         if unique in self.ignore:
@@ -182,22 +213,25 @@ class Prunner(object):
 
     def prune(self, path=None, index=None):
         if path is None and index is None:
-            path, index = self.criterion.get_path()
+            paths = self.criterion.get_path(self.num)
         elif path is None or index is None:
             raise ValueError('Both "path" and "index" should be provided')
 
-        print(f'Pruning: {path} #{index}')
-
-        logging.debug('Affected nodes:')
-        for path, channel_type in self.get_affected_nodes(self.node_paths[path], 'out'):
-            module = self.modules[path]
-            if isinstance(module, nn.Conv2d):
-                if channel_type == 'in':
-                    _remove_conv_in_channel(module, index)
+        print('Pruning:')
+        for path, index in paths:
+            print(f'{path} #{index}')
+            logging.debug('Affected nodes:')
+            for path, channel_type in self.affected[path]:
+                module = self.modules[path]
+                if _is_depthwise_conv(module):
+                    _remove_depthwise_conv_channel(module, index)
+                elif isinstance(module, nn.Conv2d):
+                    if channel_type == 'in':
+                        _remove_conv_in_channel(module, index)
+                    else:
+                        _remove_conv_out_channel(module, index)
+                elif isinstance(module, nn.BatchNorm2d):
+                    _remove_batchnorm_channel(module, index)
                 else:
-                    _remove_conv_out_channel(module, index)
-            elif isinstance(module, nn.BatchNorm2d):
-                _remove_batchnorm_channel(module, index)
-            else:
-                raise TypeError(f'Unsupported layer type: {type(module)}')
-            logging.debug(f'{path} #{index} {channel_type}')
+                    raise TypeError(f'Unsupported layer type: {type(module)}')
+                logging.debug(f'{path} #{index} {channel_type}')

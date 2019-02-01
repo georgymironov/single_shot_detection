@@ -122,7 +122,7 @@ if __name__ == '__main__':
                         writer.add_scalar(f'lr/Learning Rate {i}', x['lr'], trainer.global_step)
 
         if 'prunner' in cfg.train:
-            prunner = Prunner(detector.model, ['features', 'extras'])
+            prunner = Prunner(detector.model, **cfg.train['prunner'])
 
             @trainer.on('epoch_start')
             def prune(*args, **kwargs):

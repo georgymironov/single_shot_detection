@@ -27,6 +27,9 @@ def init(device,
     if 'model' in state:
         print('===> Restoring model from checkpoint')
         detector = state['model']
+    elif 'model' in model_params['detector']:
+        print(f'===> Restoring model from file {model_params["detector"]["model"]}')
+        detector = torch.load(model_params['detector']['model'])
     else:
         kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
         detector = DetectorBuilder(base, **kwargs).build().to(device)
