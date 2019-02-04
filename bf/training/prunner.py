@@ -1,5 +1,6 @@
 from collections import defaultdict
 import logging
+import math
 import random
 import re
 
@@ -22,39 +23,42 @@ class Critetion(object):
 
         self.modules = dict(filter(_include, modules))
 
-    def get_path(self, num):
+    def _get_path(self, sorted_indexes, num=1):
+        cumsum = 0
+        i = 0
+        for name, module in self.modules.items():
+            while cumsum + module.out_channels > sorted_indexes[i]:
+                yield name, sorted_indexes[i] - cumsum
+                i += 1
+                if num == i:
+                    return
+            cumsum += module.out_channels
+
+    def get_path(self, num=1):
         raise NotImplementedError
 
 class RandomSampling(Critetion):
     def get_path(self, num=1):
         total_channels = sum(x.out_channels for x in self.modules.values())
         indexes = sorted(random.randint(0, total_channels) for _ in range(num))
-        cumsum = 0
-        i = 0
-        for name, module in self.modules.items():
-            while cumsum + module.out_channels > indexes[i]:
-                yield name, indexes[i] - cumsum
-                i += 1
-                if num == i:
-                    return
-            cumsum += module.out_channels
+        yield from self._get_path(indexes, num)
 
 class MinL1Norm(Critetion):
     def get_path(self, num=1):
-        norm = {k: v.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1) for k, v in self.modules.items()}
-        norm = {k: torch.max(torch.cat([norm[x] for x in self.connected[k]], dim=1), dim=1)[0] for k, v in norm.items()}
+        norm = {
+            name: module.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1)
+                if module.out_channels > 1
+                else torch.tensor([[math.inf]], dtype=module.weight.dtype, device=module.weight.device)
+            for name, module in self.modules.items()
+        }
+        norm = {
+            name: torch.max(torch.cat([norm[x] for x in self.connected[name]], dim=1), dim=1)[0]
+            for name, module in norm.items()
+        }
         norm = torch.cat([x for x in norm.values()])
         _, indexes = torch.topk(norm, num, largest=False, sorted=True)
 
-        cumsum = 0
-        i = 0
-        for name, module in self.modules.items():
-            while cumsum + module.out_channels > indexes[i]:
-                yield name, indexes[i] - cumsum
-                i += 1
-                if num == i:
-                    return
-            cumsum += module.out_channels
+        yield from self._get_path(indexes, num)
 
 def _to_torch_path(onnx_node):
     return '.'.join(re.findall(r'\[(.*?)\]', onnx_node.scopeName()))
