@@ -25,12 +25,13 @@ class Critetion(object):
         name, _ = item
         return any(name.startswith(p) for p in self.include_paths)
 
-    def _get_path(self, sorted_indexes, num=1):
+    def _get_path(self, indexes, num=1):
+        indexes = sorted(indexes)
         cumsum = 0
         i = 0
         for name, module in self.filtered_modules.items():
-            while cumsum + module.out_channels > sorted_indexes[i]:
-                yield name, sorted_indexes[i] - cumsum
+            while cumsum + module.out_channels > indexes[i]:
+                yield name, indexes[i] - cumsum
                 i += 1
                 if num == i:
                     return
@@ -42,7 +43,7 @@ class Critetion(object):
 class RandomSampling(Critetion):
     def get_path(self, num=1):
         total_channels = sum(x.out_channels for x in self.filtered_modules.values())
-        indexes = sorted(random.randint(0, total_channels) for _ in range(num))
+        indexes = [random.randint(0, total_channels) for _ in range(num)]
         yield from self._get_path(indexes, num)
 
 class MinL1Norm(Critetion):
@@ -59,7 +60,7 @@ class MinL1Norm(Critetion):
         }
         norm = dict(filter(self._include, norm.items()))
         norm = torch.cat([x for x in norm.values()])
-        _, indexes = torch.topk(norm, num, largest=False, sorted=True)
+        _, indexes = torch.topk(norm, num, largest=False)
 
         yield from self._get_path(indexes, num)
 
