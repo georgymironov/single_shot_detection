@@ -29,6 +29,7 @@ if __name__ == '__main__':
     parser.add_argument('--video', type=str)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--new_checkpoint', action='store_true')
+    parser.add_argument('--tensorboard', action='store_true')
     args = parser.parse_args()
 
     cfg = helpers.load_config(args.config)
@@ -101,12 +102,12 @@ if __name__ == '__main__':
                                    accumulation_steps=cfg.train.get('accumulation_steps', 1),
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
-        writer = None
 
         if not args.debug:
             callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
             callbacks.logger(trainer, checkpoint_dir)
-            writer = callbacks.tensorboard(trainer, checkpoint_dir)
+
+        writer = callbacks.tensorboard(trainer, checkpoint_dir) if args.tensorboard else None
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)
