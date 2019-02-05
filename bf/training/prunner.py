@@ -12,21 +12,23 @@ from bf.utils import torch_utils
 
 class Critetion(object):
     def __init__(self, modules, connected=None, include_paths=None):
+        self.modules = {name: module for name, module in modules.items() if isinstance(module, nn.Conv2d)}
         self.connected = connected or {}
 
         if not include_paths:
             include_paths = []
 
-        def _include(item):
-            name, module = item
-            return any(name.startswith(p) for p in include_paths) and isinstance(module, nn.Conv2d)
+        self.include_paths = include_paths
+        self.filtered_modules = dict(filter(self._include, self.modules.items()))
 
-        self.modules = dict(filter(_include, modules))
+    def _include(self, item):
+        name, _ = item
+        return any(name.startswith(p) for p in self.include_paths)
 
     def _get_path(self, sorted_indexes, num=1):
         cumsum = 0
         i = 0
-        for name, module in self.modules.items():
+        for name, module in self.filtered_modules.items():
             while cumsum + module.out_channels > sorted_indexes[i]:
                 yield name, sorted_indexes[i] - cumsum
                 i += 1
@@ -39,7 +41,7 @@ class Critetion(object):
 
 class RandomSampling(Critetion):
     def get_path(self, num=1):
-        total_channels = sum(x.out_channels for x in self.modules.values())
+        total_channels = sum(x.out_channels for x in self.filtered_modules.values())
         indexes = sorted(random.randint(0, total_channels) for _ in range(num))
         yield from self._get_path(indexes, num)
 
@@ -53,8 +55,9 @@ class MinL1Norm(Critetion):
         }
         norm = {
             name: torch.max(torch.cat([norm[x] for x in self.connected[name]], dim=1), dim=1)[0]
-            for name, module in norm.items()
+            for name in norm.keys()
         }
+        norm = dict(filter(self._include, norm.items()))
         norm = torch.cat([x for x in norm.values()])
         _, indexes = torch.topk(norm, num, largest=False, sorted=True)
 
@@ -168,7 +171,7 @@ class Prunner(object):
                          if isinstance(self.modules[x[0]], nn.Conv2d) and x[1] == 'out']
                      for k, v in self.affected.items()}
 
-        self.criterion = globals().get(criterion)(model.named_modules(), connected, include_paths)
+        self.criterion = globals().get(criterion)(dict(model.named_modules()), connected, include_paths)
 
     def get_affected_nodes(self, unique, type_='out', memo=None):
         if unique in self.ignore:
