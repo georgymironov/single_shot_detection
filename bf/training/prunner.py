@@ -50,8 +50,8 @@ class MinL1Norm(Critetion):
     def get_path(self, num=1):
         norm = {
             name: module.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1)
-                if module.out_channels > 1
-                else torch.tensor([[math.inf]], dtype=module.weight.dtype, device=module.weight.device)
+                if module.out_channels > num
+                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
             for name, module in self.modules.items()
         }
         norm = {
@@ -60,7 +60,9 @@ class MinL1Norm(Critetion):
         }
         norm = dict(filter(self._include, norm.items()))
         norm = torch.cat([x for x in norm.values()])
+
         _, indexes = torch.topk(norm, num, largest=False)
+        indexes = [x.item() for x in indexes]
 
         yield from self._get_path(indexes, num)
 
@@ -81,44 +83,44 @@ def _mask_parameter(parameter, mask):
         if parameter.grad is not None:
             parameter.grad = parameter.grad[mask]
 
-def _remove_depthwise_conv_channel(module, index):
+def _remove_depthwise_conv_channel(module, indexes):
     mask = torch.ones(module.out_channels, dtype=torch.uint8)
-    mask[index] = 0
+    mask[indexes] = 0
 
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
 
-    module.out_channels = module.in_channels = module.groups = module.out_channels - 1
+    module.out_channels = module.in_channels = module.groups = module.out_channels - len(indexes)
 
-def _remove_conv_out_channel(module, index):
+def _remove_conv_out_channel(module, indexes):
     mask = torch.ones(module.out_channels, dtype=torch.uint8)
-    mask[index] = 0
+    mask[indexes] = 0
 
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
 
-    module.out_channels = module.out_channels - 1
+    module.out_channels = module.out_channels - len(indexes)
 
-def _remove_conv_in_channel(module, index):
+def _remove_conv_in_channel(module, indexes):
     mask = torch.ones(module.in_channels, dtype=torch.uint8)
-    mask[index] = 0
+    mask[indexes] = 0
 
     module.weight.data = module.weight.data[:, mask]
     if module.weight.grad is not None:
         module.weight.grad = module.weight.grad[:, mask]
 
-    module.in_channels = module.in_channels - 1
+    module.in_channels = module.in_channels - len(indexes)
 
-def _remove_batchnorm_channel(module, index):
+def _remove_batchnorm_channel(module, indexes):
     mask = torch.ones(module.num_features, dtype=torch.uint8)
-    mask[index] = 0
+    mask[indexes] = 0
 
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
     _mask_parameter(module.running_mean, mask)
     _mask_parameter(module.running_var, mask)
 
-    module.num_features = module.num_features - 1
+    module.num_features = module.num_features - len(indexes)
 
 class Prunner(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
@@ -168,8 +170,7 @@ class Prunner(object):
 
         self.affected = {k: list(self.get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
 
-        connected = {k: [x[0] for x in v
-                         if isinstance(self.modules[x[0]], nn.Conv2d) and x[1] == 'out']
+        connected = {k: [x[0] for x in v if isinstance(self.modules[x[0]], nn.Conv2d) and x[1] == 'out']
                      for k, v in self.affected.items()}
 
         self.criterion = globals().get(criterion)(dict(model.named_modules()), connected, include_paths)
@@ -197,7 +198,7 @@ class Prunner(object):
                     yield from self.get_affected_nodes(inp.unique(), 'out', memo)
 
         if _is_depthwise_conv_onnx(node):
-            yield affected
+            yield _to_torch_path(node), 'out'
             memo.add((_to_torch_path(node), 'in'))
             memo.add((_to_torch_path(node), 'out'))
             yield from _get_affected_in_nodes()
@@ -226,20 +227,28 @@ class Prunner(object):
             raise ValueError('Both "path" and "index" should be provided')
 
         logging.info('Pruning:')
+
+        grouped_paths = defaultdict(set)
         for path, index in paths:
             logging.info(f'{path} #{index}')
-            logging.debug('Affected nodes:')
+            logging.debug('-' * 25)
             for path, channel_type in self.affected[path]:
-                module = self.modules[path]
-                if _is_depthwise_conv(module):
-                    _remove_depthwise_conv_channel(module, index)
-                elif isinstance(module, nn.Conv2d):
-                    if channel_type == 'in':
-                        _remove_conv_in_channel(module, index)
-                    else:
-                        _remove_conv_out_channel(module, index)
-                elif isinstance(module, nn.BatchNorm2d):
-                    _remove_batchnorm_channel(module, index)
-                else:
-                    raise TypeError(f'Unsupported layer type: {type(module)}')
+                grouped_paths[(path, channel_type)].add(index)
                 logging.debug(f'{path} #{index} {channel_type}')
+            logging.debug('-' * 25)
+
+        for (path, channel_type), indexes in grouped_paths.items():
+            indexes = list(indexes)
+            module = self.modules[path]
+            if _is_depthwise_conv(module):
+                _remove_depthwise_conv_channel(module, indexes)
+            elif isinstance(module, nn.Conv2d):
+                if channel_type == 'in':
+                    _remove_conv_in_channel(module, indexes)
+                else:
+                    _remove_conv_out_channel(module, indexes)
+            elif isinstance(module, nn.BatchNorm2d):
+                _remove_batchnorm_channel(module, indexes)
+            else:
+                raise TypeError(f'Unsupported layer type: {type(module)}')
+            logging.debug(f'{(path, channel_type)} {indexes}')
