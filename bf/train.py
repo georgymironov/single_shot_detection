@@ -1,3 +1,4 @@
+import logging
 import time
 
 import torch
@@ -85,7 +86,7 @@ class Trainer(EventEmitter):
                 self.emit('step_end', phase='train', global_state=self.state, state=epoch_state)
 
         elapsed = time.time() - start
-        print(f'\n[train] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
+        logging.info(f'\n[train] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
 
         return epoch_state
 
@@ -93,7 +94,7 @@ class Trainer(EventEmitter):
         start = time.time()
 
         for epoch in range(self.state['epoch'], self.epochs):
-            print(f'Epoch: {epoch}/{self.epochs-1}')
+            logging.info(f'Epoch: {epoch}/{self.epochs-1}')
 
             self.state['epoch'] = epoch
             epoch_state = {}
@@ -123,4 +124,4 @@ class Trainer(EventEmitter):
             self.emit('epoch_end', phase=phase, global_state=self.state, epoch_state=epoch_state)
 
         elapsed = time.time() - start
-        print(f'Training finished. Total time spent: {elapsed//60:.0f}m {elapsed%60:.0f}s')
+        logging.info(f'Training finished. Total time spent: {elapsed//60:.0f}m {elapsed%60:.0f}s')

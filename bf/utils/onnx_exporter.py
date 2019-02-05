@@ -84,7 +84,7 @@ def export(model, input_size, filename):
     device = next(model.parameters()).device
     data = torch.rand((1, 3, input_size[1], input_size[0]), dtype=torch.float32, device=device)
 
-    print('===> Exporting to ONNX...')
+    logging.info('===> Exporting to ONNX...')
     _, tmp = tempfile.mkstemp()
 
     with for_export():

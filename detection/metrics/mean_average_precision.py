@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 
 import torch
 
@@ -72,7 +73,7 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
         average_precision[class_index] = 0.0
 
     if verbose:
-        print('Mean Average Precision results:')
+        logging.info('Mean Average Precision results:')
 
     for class_index in sorted(true_positive.keys()):
         true_positive[class_index] = torch.tensor(true_positive[class_index], dtype=torch.float32)
@@ -98,10 +99,10 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
         average_precision[class_index] = average_precision[class_index].item()
 
         if verbose:
-            print(f'{class_labels[class_index]}: {average_precision[class_index]:6f}')
+            logging.info(f'{class_labels[class_index]}: {average_precision[class_index]:6f}')
 
     mAP = sum(average_precision.values()) / len(average_precision.values())
     if verbose:
-        print(f'Total mean: {mAP:6f}')
+        logging.info(f'Total mean: {mAP:6f}')
 
     return mAP

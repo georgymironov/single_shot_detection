@@ -221,9 +221,9 @@ class Prunner(object):
         elif path is None or index is None:
             raise ValueError('Both "path" and "index" should be provided')
 
-        print('Pruning:')
+        logging.info('Pruning:')
         for path, index in paths:
-            print(f'{path} #{index}')
+            logging.info(f'{path} #{index}')
             logging.debug('Affected nodes:')
             for path, channel_type in self.affected[path]:
                 module = self.modules[path]

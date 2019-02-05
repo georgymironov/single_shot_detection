@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 
@@ -39,7 +40,7 @@ def export(model, config, filename, folder=None, postprocess=None):
         'extensions': ','.join([import_extensions.default_path(), os.path.dirname(mo_extensions.__file__)]),
         'silent': True
     })
-    print('===> Running model optimizer...')
+    logging.info('===> Running model optimizer...')
     driver(argv)
 
     if postprocess:

@@ -1,3 +1,4 @@
+import logging
 import operator
 import os
 import sys
@@ -94,7 +95,7 @@ def DETECTION_OUTPUT(**kwargs):
 
 
 def add_output(model_file, config):
-    print(f'===> {os.path.relpath(model_file, os.getcwd())}: adding output for detection model')
+    logging.info(f'===> {os.path.relpath(model_file, os.getcwd())}: adding output for detection model')
 
     with open(model_file, 'r') as f:
         model = bs4.BeautifulSoup(f, 'lxml-xml')
@@ -258,7 +259,7 @@ def add_output(model_file, config):
 
     parser = etree.XMLParser(remove_blank_text=True)
     with open(model_file, 'w+') as f:
-        print(etree.tostring(etree.fromstring(model.decode_contents(), parser=parser), pretty_print=True).decode(), file=f)
+        f.write(etree.tostring(etree.fromstring(model.decode_contents(), parser=parser), pretty_print=True).decode())
 
 if __name__ == '__main__':
     model, config = sys.argv[1:3]

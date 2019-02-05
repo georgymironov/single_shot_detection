@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 
@@ -14,7 +15,7 @@ def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
     if os.path.exists(config_path):
         if not os.path.exists(new_config_path) or not os.path.samefile(config_path, new_config_path):
             shutil.copy(config_path, new_config_path)
-    print(f'===> Checkpoints will be saved to {checkpoint_dir}')
+    logging.info(f'===> Checkpoints will be saved to {checkpoint_dir}')
 
     @event_emitter.on('epoch_end')
     def save_checkpoint(global_state=None, **kwargs):
@@ -22,9 +23,9 @@ def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
             torch.save(global_state, os.path.join(checkpoint_dir, f'ckpt-{global_state["global_step"]}.pt'))
 
 def logger(event_emitter, log_dir):
-    log_path = os.path.join(log_dir, 'log.txt')
-    if os.path.exists(log_path):
-        log = pd.read_csv(log_path, index_col=['global_step'])
+    csv_log_path = os.path.join(log_dir, 'log.txt')
+    if os.path.exists(csv_log_path):
+        log = pd.read_csv(csv_log_path, index_col=['global_step'])
     else:
         log = pd.DataFrame()
         log.index.name = 'global_step'
@@ -33,7 +34,7 @@ def logger(event_emitter, log_dir):
     def log_fn(global_state=None, epoch_state=None, **kwargs):
         nonlocal log
         log = log.append(pd.Series(epoch_state, name=global_state['global_step']))
-        with open(log_path, 'w') as f:
+        with open(csv_log_path, 'w') as f:
             f.write(log.to_csv())
 
 def tensorboard(event_emitter, log_dir):

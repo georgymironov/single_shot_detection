@@ -1,4 +1,5 @@
 import functools
+import logging
 
 import torch
 import torch.nn as nn
@@ -49,7 +50,7 @@ class DetectorBuilder(object):
 
         if min_scale is not None and max_scale is not None:
             self.scales = torch.linspace(min_scale, max_scale, num_scales + 1)
-            print(f'Detector (Scales: {self.scales[:-1]})')
+            logging.info(f'Detector (Scales: {self.scales[:-1]})')
         else:
             self.scales = None
 

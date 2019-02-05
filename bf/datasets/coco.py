@@ -1,4 +1,5 @@
 from collections import defaultdict
+import logging
 import json
 import os
 
@@ -45,7 +46,7 @@ class Coco(DetectionDataset):
         img_dir = os.path.join(root, f'{folder}{year}')
 
         with open(annotations, 'r') as f:
-            print(f'===> Loading {annotations}')
+            logging.info(f'===> Loading {annotations}')
             annotations = json.load(f)
 
         images = {x['id']: x for x in annotations['images']}
@@ -61,13 +62,9 @@ class Coco(DetectionDataset):
             self.annotations[a['image_id']]['boxes'].append(a['bbox'] + [categories[a['category_id']]])
         self.annotations = list(self.annotations.values())
 
-        # if not with_crowd:
-        #     annotations = list(filter(lambda x: x['iscrowd'] == 0, annotations))
-        #     print('===> Crowd images removed')
-
         self._fix_boxes()
 
-        print(f'===> COCO {folder.capitalize()} {year} loaded. {len(self)} images total')
+        logging.info(f'===> COCO {folder.capitalize()} {year} loaded. {len(self)} images total')
 
     def _fix_boxes(self):
         for a in self.annotations:

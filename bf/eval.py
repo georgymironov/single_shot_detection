@@ -1,3 +1,4 @@
+import logging
 import time
 
 import torch
@@ -41,7 +42,7 @@ class Evaluator(object):
             print(f'{", ".join(messages)}    ', end='\r')
 
         elapsed = time.time() - start
-        print(f'\n[eval] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
+        logging.info(f'\n[eval] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
 
         predictions = torch.cat(predictions, dim=0)
 

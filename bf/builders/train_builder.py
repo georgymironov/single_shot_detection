@@ -1,3 +1,5 @@
+import logging
+
 from bf.training import optimizers, schedulers
 
 
@@ -17,7 +19,7 @@ def create_optimizer(model,
     kwargs = {k: v for k, v in optimizer_params.items() if k in Optimizer.__init__.__code__.co_varnames}
     optimizer = Optimizer(parameters, **kwargs)
     if 'optimizer_dict' in state:
-        print('===> Loading optimizer weights from checkpoint')
+        logging.info('===> Loading optimizer weights from checkpoint')
         optimizer.load_state_dict(state['optimizer_dict'])
 
     return optimizer
@@ -33,7 +35,7 @@ def create_scheduler(scheduler_params, optimizer, state={}):
         scheduler = Scheduler(optimizer, **kwargs)
     else:
         last_epoch = state.get('global_step', -1) if run_scheduler_each_step else state.get('epoch', -1)
-        print(f'===> Setting scheduler "last_epoch" to {last_epoch}')
+        logging.info(f'===> Setting scheduler "last_epoch" to {last_epoch}')
         scheduler = Scheduler(optimizer, last_epoch=last_epoch, **kwargs)
 
     return scheduler, run_scheduler_each_step, scheduler_metric

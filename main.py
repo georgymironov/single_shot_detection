@@ -1,8 +1,6 @@
 import argparse
-import datetime
 import functools
 import logging
-import os
 import random
 
 import torch
@@ -18,6 +16,8 @@ from bf.utils import mo_exporter, onnx_exporter
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
 from detection.tools import mo_add_output
+
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 
 if __name__ == '__main__':
@@ -35,10 +35,12 @@ if __name__ == '__main__':
     cfg = ConfigWrapper(cfg)
     cfg.set_phases(args.phases)
 
+    state, checkpoint_dir = helpers.init_checkpoint(args.checkpoint_dir, args.new_checkpoint, args.save_dir)
+
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-
-    state = helpers.load_checkpoint(args.checkpoint_dir)
+    elif 'train' in args.phases:
+        helpers.init_file_logger(checkpoint_dir)
 
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -68,7 +70,7 @@ if __name__ == '__main__':
                                                             state=state,
                                                             preprocess=preprocess,
                                                             resize=resize)
-    print(detector.model)
+    logging.info(detector.model)
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
@@ -83,17 +85,12 @@ if __name__ == '__main__':
         IPython.embed()
     elif 'train' in args.phases:
         epochs = cfg.train['epochs']
-        total_train_steps = len(dataloader['train']) // cfg.train['accumulation_steps']
+        total_train_steps = len(dataloader['train']) // cfg.train.get('accumulation_steps', 1)
 
         cfg.update(locals())
 
         optimizer = train_builder.create_optimizer(detector.model, cfg.train['optimizer'], state=state)
-        print(optimizer)
-
-        if state and not args.new_checkpoint:
-            checkpoint_dir = args.checkpoint_dir
-        else:
-            checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
+        logging.info(optimizer)
 
         trainer = bf.train.Trainer(epochs,
                                    args.phases,
@@ -101,9 +98,10 @@ if __name__ == '__main__':
                                    optimizer,
                                    init_epoch_state_fn=init_epoch_state_fn,
                                    step_fn=step_fn,
-                                   accumulation_steps=cfg.train['accumulation_steps'],
+                                   accumulation_steps=cfg.train.get('accumulation_steps', 1),
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
+        writer = None
 
         if not args.debug:
             callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
@@ -115,11 +113,11 @@ if __name__ == '__main__':
 
             callbacks.scheduler(trainer, *scheduler)
 
-            if not args.debug:
+            if writer:
                 @trainer.on('scheduler_step')
                 def log_lr(*args, **kwargs):
                     for i, x in enumerate(optimizer.param_groups):
-                        writer.add_scalar(f'lr/Learning Rate {i}', x['lr'], trainer.global_step)
+                        writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], trainer.global_step)
 
         if 'prunner' in cfg.train:
             prunner = Prunner(detector.model, **cfg.train['prunner'])
@@ -129,7 +127,7 @@ if __name__ == '__main__':
                 prunner.prune()
 
         if state:
-            print(f'>> Resuming from: step: {state["global_step"]}, epoch: {state["epoch"]}')
+            logging.info(f'>> Resuming from: step: {state["global_step"]}, epoch: {state["epoch"]}')
             trainer.resume(initial_step=state['global_step'] + 1, initial_epoch=state['epoch'] + 1)
 
         trainer.run(dataloader, num_batches_per_epoch=cfg.train.get('num_batches_per_epoch'))

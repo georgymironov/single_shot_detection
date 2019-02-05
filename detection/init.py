@@ -1,4 +1,5 @@
 import functools
+import logging
 
 import torch
 
@@ -25,23 +26,23 @@ def init(device,
     base = base_builder.create_base(model_params)
 
     if 'model' in state:
-        print('===> Restoring model from checkpoint')
+        logging.info('===> Restoring model from checkpoint')
         detector = state['model']
     elif 'model' in model_params['detector']:
-        print(f'===> Restoring model from file {model_params["detector"]["model"]}')
+        logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
         detector = torch.load(model_params['detector']['model'])
     else:
         kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
         detector = DetectorBuilder(base, **kwargs).build().to(device)
 
         if 'weight' in model_params['detector']:
-            print(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
+            logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
             state_dict = detector.state_dict()
             state_dict.update(torch.load(model_params['detector']['weight']))
             detector.load_state_dict(state_dict)
 
         if 'model_dict' in state:
-            print('===> Loading model weights from checkpoint')
+            logging.info('===> Loading model weights from checkpoint')
             detector.load_state_dict(state['model_dict'])
 
     sampler = getattr(detection.sampler, sampler_params['name'])

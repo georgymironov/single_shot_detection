@@ -1,4 +1,6 @@
+import datetime
 import importlib
+import logging
 import os
 import re
 import sys
@@ -16,22 +18,34 @@ def _get_checkpoint(checkpoint_dir):
 
 def load_config(path):
     if not os.path.exists(path):
-        print(f'XX File does not exist {path}')
+        logging.error(f'XX File does not exist {path}')
         sys.exit(1)
 
-    print(f'>> Loading configuration from {path}')
+    logging.info(f'>> Loading configuration from {path}')
     config_spec = importlib.util.spec_from_file_location('config', path)
     config = importlib.util.module_from_spec(config_spec)
     config_spec.loader.exec_module(config)
 
     return config
 
-def load_checkpoint(path):
+def init_checkpoint(path, new_checkpoint=False, save_dir=None):
     checkpoint = _get_checkpoint(path) if path else None
 
-    state = {}
     if checkpoint:
-        print(f'>> Restoring from {checkpoint}')
+        logging.info(f'>> Restoring from {checkpoint}')
         state = torch.load(checkpoint)
+    else:
+        state = {}
 
-    return state
+    if state and not new_checkpoint:
+        checkpoint_dir = path
+    else:
+        checkpoint_dir = os.path.join(save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
+
+    return state, checkpoint_dir
+
+def init_file_logger(checkpoint_dir):
+    os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
+    log_path = os.path.join(checkpoint_dir, 'train.log')
+    file_handler = logging.FileHandler(log_path)
+    logging.getLogger().addHandler(file_handler)

@@ -1,3 +1,4 @@
+import logging
 import os
 from xml.etree import ElementTree
 
@@ -32,7 +33,7 @@ class Voc(DetectionDataset):
             image_set_file = os.path.join(root, f'VOC{year}', 'ImageSets', 'Main', f'{image_set}.txt')
 
             with open(image_set_file, 'r') as f:
-                print(f'===> Loading {image_set_file}')
+                logging.info(f'===> Loading {image_set_file}')
                 annotations = [x.strip() for x in f.readlines()]
 
             for annotation in annotations:
@@ -59,4 +60,4 @@ class Voc(DetectionDataset):
                     'boxes': np.array(boxes, dtype=np.float32)
                 })
 
-        print(f'===> Pascal VOC {image_sets} loaded. {len(self)} images total')
+        logging.info(f'===> Pascal VOC {image_sets} loaded. {len(self)} images total')
