@@ -16,19 +16,17 @@ class ObjectFormatter(object):
         self.format_obj()
 
     def _format_str(self, attr):
-        parsed = [x[1] for x in string.Formatter().parse(attr)]
-        if all(x is None for x in parsed):
+        parsed = [x[1] for x in string.Formatter().parse(attr) if x[1] is not None]
+        if not parsed:
             return attr
         fields = {}
         for field in parsed:
-            if field is None:
-                continue
             value = self.context.get(field)
             if value is not None:
                 fields[field] = value
-            else:
-                raise ValueError(f'{field} field missing in context')
-        return try_int(try_eval(attr.format(**fields)))
+        if set(fields.keys()) == set(parsed):
+            return try_int(try_eval(attr.format(**fields)))
+        return attr
 
     def _format_dict(self, dict_):
         for k, v in dict_.items():
