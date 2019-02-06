@@ -1,4 +1,3 @@
-import functools
 import logging
 
 import torch
@@ -7,23 +6,16 @@ import torch.nn as nn
 from bf.modules import conv
 from bf.utils.torch_utils import get_multiple_outputs
 from detection.detector import Detector
-from detection.anchor_generator import AnchorGenerator
+import detection.ssd
 
 
 class DetectorBuilder(object):
     def __init__(self,
                  base,
+                 anchor_generator_params,
                  num_classes,
                  source_layers,
                  extra_layer_depth=(None, None, 512, 256, 256, 256),
-                 num_scales=6,
-                 sizes=None,
-                 min_scale=None,
-                 max_scale=None,
-                 aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
-                 steps=None,
-                 offsets=[0.5, 0.5],
-                 num_branches=None,
                  last_feature_layer=None,
                  depth_multiplier=1.0,
                  use_depthwise=False,
@@ -32,47 +24,22 @@ class DetectorBuilder(object):
 
         assert isinstance(base, nn.Module)
         assert isinstance(base.features, nn.Sequential)
-        assert len(aspect_ratios) == num_scales
-        assert len(source_layers) == num_scales
-        assert len(extra_layer_depth) == num_scales
-        assert sizes is not None or (min_scale is not None and max_scale is not None)
-
-        if steps is not None:
-            assert len(steps) == num_scales
-            self.steps = steps
-        else:
-            self.steps = [None] * num_scales
-
-        if num_branches is None:
-            num_branches = [1] * num_scales
-        else:
-            assert len(num_branches) == num_scales
-
-        if min_scale is not None and max_scale is not None:
-            self.scales = torch.linspace(min_scale, max_scale, num_scales + 1)
-            logging.info(f'Detector (Scales: {self.scales[:-1]})')
-        else:
-            self.scales = None
-
-        if sizes is not None:
-            self.sizes = sizes
+        assert len(source_layers) == len(extra_layer_depth)
 
         self.base = base
         self.num_classes = num_classes
-        self.use_depthwise = use_depthwise
-        self.depth_multiplier = depth_multiplier
-        self.num_scales = num_scales
-        self.aspect_ratios = aspect_ratios
-        self.num_branches = num_branches
         self.source_layers = source_layers
         self.extra_layer_depth = extra_layer_depth
+        self.num_scales = len(source_layers)
         self.last_feature_layer = last_feature_layer
+        self.depth_multiplier = depth_multiplier
+        self.use_depthwise = use_depthwise
         self.activation_params = activation
-        self.activation = functools.partial(getattr(nn, activation['name']), **activation['args'])
         self.batch_norm_params = batch_norm
+
         self.source_out_channels = self.get_source_out_channels()
 
-        self.priors = self.get_priors()
+        self.priors = self.get_priors(**anchor_generator_params)
         self.num_boxes = [x.num_boxes for x in self.priors]
 
     def build(self):
@@ -146,18 +113,46 @@ class DetectorBuilder(object):
             }))
         return heads
 
-    def get_priors(self):
+    def get_priors(self,
+                   type,
+                   sizes=None,
+                   min_scale=None,
+                   max_scale=None,
+                   aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
+                   steps=None,
+                   offsets=[0.5, 0.5],
+                   num_branches=None):
+        assert sizes is not None or (min_scale is not None and max_scale is not None)
+
+        if steps is None:
+            steps = [None] * self.num_scales
+        else:
+            assert len(steps) == self.num_scales
+
+        if num_branches is None:
+            num_branches = [1] * self.num_scales
+        else:
+            assert len(num_branches) == self.num_scales
+
+        if min_scale is not None and max_scale is not None:
+            scales = torch.linspace(min_scale, max_scale, self.num_scales + 1)
+            logging.info(f'Detector (Scales: {scales[:-1]})')
+        else:
+            scales = None
+
+        AnchorGenerator = getattr(detection, type).AnchorGenerator
+
         priors = []
-        for i, (ratios, step, num_branches) in enumerate(zip(self.aspect_ratios, self.steps, self.num_branches)):
-            if self.scales is not None:
+        for i, (ratios, step, num_branches) in enumerate(zip(aspect_ratios, steps, num_branches)):
+            if scales is not None:
                 kwargs = {
-                    'min_scale': self.scales[i],
-                    'max_scale': self.scales[i + 1]
+                    'min_scale': scales[i],
+                    'max_scale': scales[i + 1]
                 }
             else:
                 kwargs = {
-                    'min_size': self.sizes[i],
-                    'max_size': self.sizes[i + 1]
+                    'min_size': sizes[i],
+                    'max_size': sizes[i + 1]
                 }
             priors.append(AnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
         return priors

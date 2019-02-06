@@ -23,8 +23,6 @@ def init(device,
          state={},
          preprocess=None,
          resize=None):
-    base = base_builder.create_base(model_params)
-
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
@@ -32,8 +30,9 @@ def init(device,
         logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
         detector = torch.load(model_params['detector']['model'])
     else:
+        base = base_builder.create_base(model_params)
         kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
-        detector = DetectorBuilder(base, **kwargs).build().to(device)
+        detector = DetectorBuilder(base, anchor_generator_params=model_params['anchor_generator'], **kwargs).build().to(device)
 
         if 'weight' in model_params['detector']:
             logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')

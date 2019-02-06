@@ -124,7 +124,7 @@ class MobileNetV2(nn.Module):
             inverted_residual_bottleneck(depth(160), depth(160), stride=1, expantion_ratio=6),  # 15
             inverted_residual_bottleneck(depth(160), depth(160), stride=1, expantion_ratio=6),  # 16
             inverted_residual_bottleneck(depth(160), depth(320), stride=1, expantion_ratio=6),  # 17
-            conv_bn(depth(320), 1280, kernel_size=1)                                            # 18
+            conv_bn(depth(320), depth(1280), kernel_size=1)                                     # 18
         )
 
         if self.include_top:

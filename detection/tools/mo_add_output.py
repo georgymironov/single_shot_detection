@@ -153,22 +153,22 @@ def add_output(model_file, config):
         source_layers.append(intersecion[-1])
 
     detector_cfg = config.model['detector']
-    assert len(source_layers) == detector_cfg['num_scales']
+    num_scales = len(source_layers)
 
     last_id = max(int(x['id']) for x in layers)
 
     if 'min_scale' in detector_cfg and 'max_scale' in detector_cfg:
         assert config.input_size[0] == config.input_size[1]
-        scales = np.linspace(detector_cfg['min_scale'], detector_cfg['max_scale'], detector_cfg['num_scales'] + 1)
+        scales = np.linspace(detector_cfg['min_scale'], detector_cfg['max_scale'], num_scales + 1)
         sizes = scales * config.input_size[0]
     elif 'sizes' in detector_cfg:
-        assert len(detector_cfg['sizes']) == detector_cfg['num_scales'] + 1
+        assert len(detector_cfg['sizes']) == num_scales + 1
         sizes = detector_cfg['sizes']
     else:
         raise KeyError('Either size or scale should be specified')
 
     variance = ','.join(operator.add(*[[str(1 / float(config.box_coder[x]))] * 2 for x in ['xy_scale', 'wh_scale']]))
-    num_branches = detector_cfg.get('num_branches', [1] * detector_cfg['num_scales'])
+    num_branches = detector_cfg.get('num_branches', [1] * num_scales)
 
     prior_boxes = []
     prior_box_out_sizes = []

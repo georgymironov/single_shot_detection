@@ -28,6 +28,7 @@ class VideoViewer(object):
 
         stop = False
         for path in paths:
+            print(path)
             cap = cv2.VideoCapture(path)
             cv2.namedWindow('image')
 
