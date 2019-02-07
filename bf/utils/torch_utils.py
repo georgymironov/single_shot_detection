@@ -1,9 +1,12 @@
 import torch
+import torch.nn as nn
 
 from . import onnx_exporter
 
 
 def get_multiple_outputs(model, input_, output_layers):
+    assert isinstance(model, nn.Sequential)
+
     x = input_
     output_layer_idx = 0
     outputs = []

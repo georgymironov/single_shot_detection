@@ -3,8 +3,7 @@ import logging
 import torch
 import torch.nn as nn
 
-from bf.modules import conv
-from bf.utils.torch_utils import get_multiple_outputs
+from bf.modules import conv, features
 from detection.detector import Detector
 import detection.ssd
 
@@ -22,45 +21,33 @@ class DetectorBuilder(object):
                  activation={'name': 'ReLU', 'args': {'inplace': True}},
                  batch_norm={}):
 
-        assert isinstance(base, nn.Module)
-        assert isinstance(base.features, nn.Sequential)
         assert len(source_layers) == len(extra_layer_depth)
 
-        self.base = base
+        self.features = features.Features(base, source_layers, last_feature_layer=last_feature_layer)
         self.num_classes = num_classes
         self.source_layers = source_layers
         self.extra_layer_depth = extra_layer_depth
         self.num_scales = len(source_layers)
-        self.last_feature_layer = last_feature_layer
         self.depth_multiplier = depth_multiplier
         self.use_depthwise = use_depthwise
         self.activation_params = activation
         self.batch_norm_params = batch_norm
 
-        self.source_out_channels = self.get_source_out_channels()
+        self.source_out_channels = self.features.get_out_channels()
 
         self.priors = self.get_priors(**anchor_generator_params)
         self.num_boxes = [x.num_boxes for x in self.priors]
 
     def build(self):
-        feature_layers = list(self.base.features.children())
-        if self.last_feature_layer is not None:
-            feature_layers = feature_layers[:(self.last_feature_layer + 1)]
-        features = nn.Sequential(*feature_layers)
         extras = self.get_extras()
         heads = self.get_heads()
 
         return Detector(self.num_classes,
-                        features,
+                        self.features,
                         extras,
                         heads,
                         self.priors,
                         self.source_layers)
-
-    def get_source_out_channels(self):
-        dummy = torch.ones((1, 3, 300, 300), dtype=torch.float)
-        sources, _ = get_multiple_outputs(self.base.features, dummy, self.source_layers)
-        return [x.size(1) for x in sources]
 
     def get_extras(self):
         extras = nn.ModuleList()
@@ -79,21 +66,22 @@ class DetectorBuilder(object):
 
             in_channels = out_channels // 2
 
-            if self.use_depthwise:
-                if source_layer == 's':
+            if source_layer == 's':
+                if self.use_depthwise:
                     layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, stride=2,
                                                          padding=1, bias=False, activation_params=self.activation_params,
                                                          use_bn=True, batch_norm_params=self.batch_norm_params))
-                elif source_layer == '':
-                    layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
-                                                         activation_params=self.activation_params,
-                                                         use_bn=True, batch_norm_params=self.batch_norm_params))
-            else:
-                if source_layer == 's':
+                else:
                     layers.append(conv.Conv2dBn(in_channels, out_channels, kernel_size=3, stride=2,
                                                 padding=1, bias=False, activation_params=self.activation_params,
                                                 use_bn=True, batch_norm_params=self.batch_norm_params))
-                elif source_layer == '':
+
+            elif source_layer == '':
+                if self.use_depthwise:
+                    layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
+                                                         activation_params=self.activation_params,
+                                                         use_bn=True, batch_norm_params=self.batch_norm_params))
+                else:
                     layers.append(conv.Conv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
                                                 activation_params=self.activation_params,
                                                 use_bn=True, batch_norm_params=self.batch_norm_params))

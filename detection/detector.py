@@ -4,7 +4,6 @@ import torch.nn.functional as F
 
 import bf.preprocessing
 import bf.utils
-from bf.utils.torch_utils import get_multiple_outputs
 
 
 class Detector(nn.Module):
@@ -40,8 +39,7 @@ class Detector(nn.Module):
         locs = []
         priors = []
 
-        with torch.jit.scope('Sequential[features]'):
-            sources, x = get_multiple_outputs(self.features, img, self.source_layers)
+        sources, x = self.features(img)
 
         with torch.jit.scope('Sequential[extras]'):
             for i, layer in enumerate(self.extras):
