@@ -14,24 +14,36 @@ class DetectorBuilder(object):
                  anchor_generator_params,
                  num_classes,
                  source_layers,
-                 extra_layer_depth=(None, None, 512, 256, 256, 256),
+                 extra_layers=(),
                  last_feature_layer=None,
+                 fpn_layers=None,
+                 fpn_channels=256,
                  depth_multiplier=1.0,
                  use_depthwise=False,
                  activation={'name': 'ReLU', 'args': {'inplace': True}},
                  batch_norm={}):
 
-        assert len(source_layers) == len(extra_layer_depth)
-
-        self.features = features.Features(base, source_layers, last_feature_layer=last_feature_layer)
         self.num_classes = num_classes
         self.source_layers = source_layers
-        self.extra_layer_depth = extra_layer_depth
-        self.num_scales = len(source_layers)
+        self.extra_layers = extra_layers
         self.depth_multiplier = depth_multiplier
         self.use_depthwise = use_depthwise
         self.activation_params = activation
         self.batch_norm_params = batch_norm
+
+        if fpn_layers is not None:
+            assert fpn_layers >= len(source_layers)
+            self.features = features.FeaturePyramid(base,
+                                                    source_layers,
+                                                    fpn_layers,
+                                                    fpn_channels,
+                                                    last_feature_layer=last_feature_layer)
+            self.num_scales = fpn_layers + len(extra_layers)
+        else:
+            self.features = features.Features(base,
+                                              source_layers,
+                                              last_feature_layer=last_feature_layer)
+            self.num_scales = len(source_layers) + len(extra_layers)
 
         self.source_out_channels = self.features.get_out_channels()
 
@@ -53,7 +65,7 @@ class DetectorBuilder(object):
         extras = nn.ModuleList()
         in_channels = self.source_out_channels[-1]
 
-        for source_layer, depth in zip(self.source_layers, self.extra_layer_depth):
+        for type_, depth in self.extra_layers:
             if depth is None:
                 continue
 
@@ -66,7 +78,7 @@ class DetectorBuilder(object):
 
             in_channels = out_channels // 2
 
-            if source_layer == 's':
+            if type_ == 's':
                 if self.use_depthwise:
                     layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, stride=2,
                                                          padding=1, bias=False, activation_params=self.activation_params,
@@ -76,7 +88,7 @@ class DetectorBuilder(object):
                                                 padding=1, bias=False, activation_params=self.activation_params,
                                                 use_bn=True, batch_norm_params=self.batch_norm_params))
 
-            elif source_layer == '':
+            elif type_ == '':
                 if self.use_depthwise:
                     layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
                                                          activation_params=self.activation_params,
@@ -127,6 +139,8 @@ class DetectorBuilder(object):
             logging.info(f'Detector (Scales: {scales[:-1]})')
         else:
             scales = None
+
+        assert len(aspect_ratios) == self.num_scales
 
         AnchorGenerator = getattr(detection, type).AnchorGenerator
 

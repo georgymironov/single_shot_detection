@@ -8,8 +8,8 @@ model = {
     'detector': {
         'num_classes': 81,
         'use_depthwise': True,
-        'source_layers': ([13, 'expand_relu'], 18, 's', 's', 's', 's'),
-        'extra_layer_depth': (None, None, 512, 256, 256, 128)
+        'source_layers': ([13, 'expand_relu'], 18),
+        'extra_layers': (('s', 512), ('s', 256), ('s', 256), ('s', 128))
     },
     'anchor_generator': {
         'type': 'ssd',
