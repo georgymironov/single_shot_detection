@@ -11,6 +11,7 @@ class Detector(nn.Module):
                  num_classes,
                  features,
                  extras,
+                 predictor,
                  heads,
                  priors,
                  source_layers):
@@ -19,6 +20,7 @@ class Detector(nn.Module):
         self.num_classes = num_classes
         self.features = features
         self.extras = extras
+        self.predictor = predictor
         self.heads = heads
         self.priors = priors
         self.source_layers = source_layers
@@ -54,23 +56,31 @@ class Detector(nn.Module):
                     x = layer(x)
                 sources.append(x)
 
-        for i, (head, source, prior) in enumerate(zip(self.heads, sources, self.priors)):
+        class_sources = loc_sources = sources
+
+        # backward compatibility
+        # ToDo: remove
+        if hasattr(self, 'predictor'):
+            class_sources = map(self.predictor['class'], sources)
+            loc_sources = map(self.predictor['loc'], sources)
+
+        for i, (head, class_source, loc_source, prior) in enumerate(zip(self.heads, class_sources, loc_sources, self.priors)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):
                 with torch.jit.scope(f'_item[class]'):
                     scores.append(
-                        head['class'](source)
+                        head['class'](class_source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
-                            .view(source.size(0), -1))
+                            .view(class_source.size(0), -1))
                 with torch.jit.scope(f'_item[loc]'):
                     locs.append(
-                        head['loc'](source)
+                        head['loc'](loc_source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
-                            .view(source.size(0), -1))
+                            .view(loc_source.size(0), -1))
 
             if not bf.utils.onnx_exporter.is_exporting():
-                priors.append(prior.generate(img, source).view(-1))
+                priors.append(prior.generate(img, loc_source).view(-1))
 
         scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
@@ -96,4 +106,3 @@ class Detector(nn.Module):
 
     def init(self):
         self.extras.apply(self.init_layer)
-        self.heads.apply(self.init_layer)

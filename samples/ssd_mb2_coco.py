@@ -9,7 +9,9 @@ model = {
         'num_classes': 81,
         'use_depthwise': True,
         'source_layers': ([13, 'expand_relu'], 18),
-        'extra_layers': (('s', 512), ('s', 256), ('s', 256), ('s', 128))
+        'extras': {
+            'layers': (('s', 512), ('s', 256), ('s', 256), ('s', 128))
+        }
     },
     'anchor_generator': {
         'type': 'ssd',

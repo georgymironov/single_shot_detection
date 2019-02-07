@@ -4,9 +4,11 @@ import logging
 import torch
 
 from bf.builders import base_builder
+from bf.utils.misc_utils import filter_kwargs
+
 import detection.sampler
+from detection import detector_builder
 from detection.box_coder import BoxCoder
-from detection.detector_builder import DetectorBuilder
 from detection.detector_wrapper import DetectorWrapper
 from detection.losses.mutibox_loss import MultiboxLoss
 from detection.postprocessor import Postprocessor
@@ -31,8 +33,10 @@ def init(device,
         detector = torch.load(model_params['detector']['model'])
     else:
         base = base_builder.create_base(model_params)
-        kwargs = {k: v for k, v in model_params['detector'].items() if k in DetectorBuilder.__init__.__code__.co_varnames}
-        detector = DetectorBuilder(base, anchor_generator_params=model_params['anchor_generator'], **kwargs).build().to(device)
+        detector = filter_kwargs(detector_builder.build)(base,
+                                                         anchor_generator_params=model_params['anchor_generator'],
+                                                         **model_params['detector'])
+        detector = detector.to(device)
 
         if 'weight' in model_params['detector']:
             logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
