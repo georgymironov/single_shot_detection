@@ -41,7 +41,7 @@ def create_dataloaders(data_params,
                           preprocess=preprocess)
 
         dataloader = DataLoader(dataset,
-                                batch_size=batch_size,
+                                batch_size=batch_size * 2 if phase == 'eval' else batch_size,
                                 shuffle=shuffle and phase == 'train',
                                 collate_fn=dataset.collate,
                                 num_workers=num_workers,
