@@ -1,12 +1,12 @@
 import functools
-import logging
 
-import torch
 import torch.nn as nn
 
 from bf.modules import conv
 from bf.modules.features import FeaturePyramid, Features
 from detection.detector import Detector
+
+import detection.retina_net
 import detection.ssd
 
 
@@ -40,7 +40,10 @@ def build(base,
 
     source_out_channels = features.get_out_channels()
 
-    priors = get_priors(num_scales, **anchor_generator_params)
+    anchor_generator = getattr(detection, anchor_generator_params['type']).anchor_generator
+    priors = anchor_generator.get_priors(**anchor_generator_params)
+
+    assert num_scales == len(priors)
     num_boxes = [x.num_boxes for x in priors]
 
     extras = get_extras(source_out_channels, use_depthwise, depth_multiplier, **extras)
@@ -147,8 +150,8 @@ def get_predictor(source_out_channels,
 
     heads = nn.ModuleList()
     for in_channels, num_boxes in zip(out_channels, num_boxes):
-        class_head = nn.Conv2d(in_channels, num_boxes * num_classes, kernel_size=3, padding=1)
-        loc_head = nn.Conv2d(in_channels, num_boxes * 4, kernel_size=3, padding=1)
+        class_head = nn.Conv2d(in_channels, num_boxes * num_classes, kernel_size=3, padding=1, bias=True)
+        loc_head = nn.Conv2d(in_channels, num_boxes * 4, kernel_size=3, padding=1, bias=True)
 
         class_head.apply(_init_class_head)
         loc_head.apply(_init_predictor)
@@ -156,49 +159,3 @@ def get_predictor(source_out_channels,
         heads.append(nn.ModuleDict({'class': class_head, 'loc': loc_head}))
 
     return predictor, heads
-
-def get_priors(num_scales,
-               type,
-               sizes=None,
-               min_scale=None,
-               max_scale=None,
-               aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
-               steps=None,
-               offsets=[0.5, 0.5],
-               num_branches=None):
-    assert sizes is not None or (min_scale is not None and max_scale is not None)
-
-    if steps is None:
-        steps = [None] * num_scales
-    else:
-        assert len(steps) == num_scales
-
-    if num_branches is None:
-        num_branches = [1] * num_scales
-    else:
-        assert len(num_branches) == num_scales
-
-    if min_scale is not None and max_scale is not None:
-        scales = torch.linspace(min_scale, max_scale, num_scales + 1)
-        logging.info(f'Detector (Scales: {scales[:-1]})')
-    else:
-        scales = None
-
-    assert len(aspect_ratios) == num_scales
-
-    AnchorGenerator = getattr(detection, type).AnchorGenerator
-
-    priors = []
-    for i, (ratios, step, num_branches) in enumerate(zip(aspect_ratios, steps, num_branches)):
-        if scales is not None:
-            kwargs = {
-                'min_scale': scales[i],
-                'max_scale': scales[i + 1]
-            }
-        else:
-            kwargs = {
-                'min_size': sizes[i],
-                'max_size': sizes[i + 1]
-            }
-        priors.append(AnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
-    return priors

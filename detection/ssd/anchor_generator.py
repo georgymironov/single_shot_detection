@@ -1,8 +1,55 @@
 import functools
+import logging
 import math
 
 import torch
 
+from bf.utils.misc_utils import filter_kwargs
+
+
+@filter_kwargs
+def get_priors(num_scales=6,
+               sizes=None,
+               min_scale=None,
+               max_scale=None,
+               aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
+               steps=None,
+               offsets=[0.5, 0.5],
+               num_branches=None):
+    assert sizes is not None or (min_scale is not None and max_scale is not None)
+
+    if steps is None:
+        steps = [None] * num_scales
+    else:
+        assert len(steps) == num_scales
+
+    if num_branches is None:
+        num_branches = [1] * num_scales
+    else:
+        assert len(num_branches) == num_scales
+
+    if min_scale is not None and max_scale is not None:
+        scales = torch.linspace(min_scale, max_scale, num_scales + 1)
+        logging.info(f'Detector (Scales: {scales[:-1]})')
+    else:
+        scales = None
+
+    assert len(aspect_ratios) == num_scales
+
+    priors = []
+    for i, (ratios, step, num_branches) in enumerate(zip(aspect_ratios, steps, num_branches)):
+        if scales is not None:
+            kwargs = {
+                'min_scale': scales[i],
+                'max_scale': scales[i + 1]
+            }
+        else:
+            kwargs = {
+                'min_size': sizes[i],
+                'max_size': sizes[i + 1]
+            }
+        priors.append(AnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
+    return priors
 
 class AnchorGenerator(object):
     def __init__(self,

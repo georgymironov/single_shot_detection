@@ -7,6 +7,7 @@ model = {
     },
     'anchor_generator': {
         'type': 'ssd',
+        'num_scales': 6,
         'min_scale': 0.1,
         'max_scale': 1.05,
         'aspect_ratios': [[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2
