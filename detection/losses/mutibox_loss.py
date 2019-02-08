@@ -15,7 +15,7 @@ class MultiboxLoss(nn.Module):
         super(MultiboxLoss, self).__init__()
 
         ClassificationLoss = filter_ctor_args(getattr(losses, classification_loss['name']))
-        self.classification_loss = ClassificationLoss(reduction='none', **classification_loss)
+        self.classification_loss = ClassificationLoss(reduction='none', ignore_index=-1, **classification_loss)
 
         LocalizationLoss = filter_ctor_args(getattr(losses, localization_loss['name']))
         self.localization_loss = LocalizationLoss(reduction='sum', **localization_loss)

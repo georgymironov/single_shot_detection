@@ -4,21 +4,25 @@ from torch.nn import NLLLoss, SmoothL1Loss
 
 
 class SoftmaxFocalLoss(nn.Module):
-    def __init__(self, gamma=0.0, alpha=None, reduction='mean'):
+    def __init__(self, gamma=0.0, alpha=None, reduction='mean', ignore_index=-100):
         super(SoftmaxFocalLoss, self).__init__()
 
         if reduction not in ['mean', 'sum', 'none']:
-            raise ValueError('Wrong value for reduction: {reduction}')
+            raise ValueError(f'Wrong value for reduction: {reduction}')
 
         self.gamma = gamma
         self.alpha = alpha
         self.reduction = reduction
+        self.ignore_index = ignore_index
 
     def forward(self, input_, target):
-        logpb = input_.gather(1, target.view(-1, 1)).view(-1)
+        loss = torch.zeros(target.size(), dtype=torch.float32, device=target.device)
+        mask = target != self.ignore_index
+
+        logpb = input_[mask, target[mask]]
         pb = logpb.exp()
 
-        loss = -1 * (1 - pb).pow_(self.gamma).mul_(logpb)
+        loss[mask] = -1 * (1 - pb).pow_(self.gamma).mul_(logpb)
 
         if self.alpha is not None:
             alpha = torch.full_like(target, self.alpha, dtype=torch.float)
