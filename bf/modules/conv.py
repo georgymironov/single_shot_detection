@@ -23,13 +23,16 @@ class Conv2dBn(nn.Module):
                               bias=bias)
         if use_bn:
             self.bn = nn.BatchNorm2d(out_channels, **batch_norm_params)
-        self.activation = getattr(nn, activation_params['name'])(**activation_params['args'])
+        if activation_params is not None:
+            self.activation = getattr(nn, activation_params['name'])(**activation_params['args'])
 
     def forward(self, x):
         x = self.conv(x)
         if 'bn' in self._modules:
             x = self.bn(x)
-        return self.activation(x)
+        if 'activation' in self._modules:
+            x = self.activation(x)
+        return x
 
 
 class DepthwiseConv2dBn(nn.Module):
@@ -54,7 +57,8 @@ class DepthwiseConv2dBn(nn.Module):
                                         bias=bias)
         if use_bn:
             self.depthwise_bn = nn.BatchNorm2d(in_channels, **batch_norm_params)
-        self.depthwise_activation = getattr(nn, activation_params['name'])(**activation_params['args'])
+        if activation_params is not None:
+            self.depthwise_activation = getattr(nn, activation_params['name'])(**activation_params['args'])
 
         self.pointwise_conv = nn.Conv2d(in_channels,
                                         out_channels,
@@ -62,16 +66,19 @@ class DepthwiseConv2dBn(nn.Module):
                                         bias=bias)
         if use_bn:
             self.pointwise_bn = nn.BatchNorm2d(out_channels, **batch_norm_params)
-        self.pointwise_activation = getattr(nn, activation_params['name'])(**activation_params['args'])
+        if activation_params is not None:
+            self.pointwise_activation = getattr(nn, activation_params['name'])(**activation_params['args'])
 
     def forward(self, x):
         x = self.depthwise_conv(x)
         if 'depthwise_bn' in self._modules:
             x = self.depthwise_bn(x)
-        x = self.depthwise_activation(x)
+        if 'depthwise_activation' in self._modules:
+            x = self.depthwise_activation(x)
         x = self.pointwise_conv(x)
         if 'pointwise_bn' in self._modules:
             x = self.pointwise_bn(x)
-        x = self.pointwise_activation(x)
+        if 'pointwise_activation' in self._modules:
+            x = self.pointwise_activation(x)
 
         return x

@@ -116,19 +116,28 @@ def get_predictor(source_out_channels,
         assert len(set(source_out_channels)) == 1
 
     predictor = nn.ModuleDict()
+    norms = nn.ModuleDict()
     for head in ['class', 'loc']:
         in_channels = source_out_channels[0]
-        layers = []
+        layers = nn.ModuleList()
+        norms[head] = nn.ModuleList()
+
         for _ in range(num_layers):
             if use_depthwise:
                 layers.append(conv.DepthwiseConv2dBn(in_channels, num_channels, kernel_size=kernel_size, padding=1,
-                                                     bias=True, activation_params=activation, use_bn=False))
+                                                     bias=True, activation_params=None, use_bn=False))
             else:
                 layers.append(conv.Conv2dBn(in_channels, num_channels, kernel_size=kernel_size, padding=1, bias=True,
-                                            activation_params=activation, use_bn=False))
-            in_channels = num_channels
+                                            activation_params=None, use_bn=False))
+            layer_norms = nn.ModuleList()
+            for _ in source_out_channels:
+                layer_norms.append(nn.BatchNorm2d(num_channels, **batch_norm))
+            norms[head].append(layer_norms)
 
-        predictor[head] = nn.Sequential(*layers)
+            in_channels = num_channels
+        predictor[head] = layers
+
+    activation_ = getattr(nn, activation['name'])(**activation['args'])
 
     if num_layers > 0:
         out_channels = [num_channels] * len(source_out_channels)
@@ -158,4 +167,4 @@ def get_predictor(source_out_channels,
 
         heads.append(nn.ModuleDict({'class': class_head, 'loc': loc_head}))
 
-    return predictor, heads
+    return (predictor, activation_, norms), heads

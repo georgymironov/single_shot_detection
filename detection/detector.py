@@ -19,7 +19,9 @@ class Detector(nn.Module):
         self.num_classes = num_classes
         self.features = features
         self.extras = extras
-        self.predictor = predictor
+        self.predictor_conv = predictor[0]
+        self.predictor_activation = predictor[1]
+        self.predictor_norm = predictor[2]
         self.heads = heads
         self.priors = priors
         self.source_layers = source_layers
@@ -59,9 +61,19 @@ class Detector(nn.Module):
 
         # backward compatibility
         # ToDo: remove
-        if hasattr(self, 'predictor'):
-            class_sources = map(self.predictor['class'], sources)
-            loc_sources = map(self.predictor['loc'], sources)
+        if hasattr(self, 'predictor_conv'):
+            for class_conv, loc_conv, class_norm, loc_norm in zip(self.predictor_conv['class'],
+                                                                  self.predictor_conv['loc'],
+                                                                  self.predictor_norm['class'],
+                                                                  self.predictor_norm['loc']):
+                class_sources = map(class_conv, class_sources)
+                loc_sources = map(loc_conv, loc_sources)
+
+                class_sources = map(self.predictor_activation, class_sources)
+                loc_sources = map(self.predictor_activation, loc_sources)
+
+                class_sources = [norm(x) for norm, x in zip(class_norm, class_sources)]
+                loc_sources = [norm(x) for norm, x in zip(loc_norm, loc_sources)]
 
         for i, (head, class_source, loc_source, prior) in enumerate(zip(self.heads, class_sources, loc_sources, self.priors)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):
