@@ -6,7 +6,7 @@ You are being provided with the following set of features:
 - Train SSD or RetinaNet with ResNet, VGG or MobileNetV2 backbone
 - Data augmentations
 - [AdamW and SGDW](https://www.fast.ai/2018/07/02/adam-weight-decay/) optimizers, some custom learning rate schedulers
-- Weight prunning for efficient inference
+- Weight pruning for efficient inference
 - Export to [ONNX](https://github.com/onnx/onnx) or [OpenVINO](https://github.com/opencv/dldt)
 - Tensorboard integration
 - Training callbacks
@@ -41,7 +41,7 @@ Some places that may be useful to look into:
     - `bf.datasets` - dataset handling
     - `bf.preprocessing` - data augmentations and preprocessing
     - `bf.training` - callbacks; custom optimizers and learning
-    rate schedulers; weight prunnner
+    rate schedulers; weight prunner
     - ...
 - `detection` - parts of code which are used to build object detection pipelines on top of `bf`
 - `samples` - contains sample configuration files for popular network architectures

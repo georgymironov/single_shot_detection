@@ -103,7 +103,7 @@ train = {
         'weight_decay': 5e-4
     },
 
-    'prunner': {
+    'pruner': {
         'include_paths': ['features', 'extras'],
         'criterion': 'MinL1Norm',
     }

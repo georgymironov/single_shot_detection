@@ -8,7 +8,7 @@ import torch
 import bf
 from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
-from bf.training.prunner import Prunner
+from bf.training.pruner import Pruner
 from bf.utils.config_wrapper import ConfigWrapper
 from bf.utils.video_viewer import VideoViewer
 from bf.utils import mo_exporter, onnx_exporter
@@ -120,12 +120,12 @@ if __name__ == '__main__':
                     for i, x in enumerate(optimizer.param_groups):
                         writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], trainer.global_step)
 
-        if 'prunner' in cfg.train:
-            prunner = Prunner(detector.model, **cfg.train['prunner'])
+        if 'pruner' in cfg.train:
+            pruner = Pruner(detector.model, **cfg.train['pruner'])
 
             @trainer.on('epoch_start')
             def prune(*args, **kwargs):
-                prunner.prune()
+                pruner.prune()
 
         if state:
             logging.info(f'>> Resuming from: step: {state["global_step"]}, epoch: {state["epoch"]}')

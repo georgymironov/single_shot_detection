@@ -5,7 +5,7 @@
 - *(maybe)* YOLOv3 (https://pjreddie.com/media/files/papers/YOLOv3.pdf)
 
 ### Training
-- Taylor expansion criterion for prunning (https://arxiv.org/pdf/1611.06440.pdf)
+- Taylor expansion criterion for pruning (https://arxiv.org/pdf/1611.06440.pdf)
 
 ### General
 - Make some 3rd party deps optional to install
