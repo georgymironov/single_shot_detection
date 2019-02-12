@@ -42,7 +42,6 @@ def init_checkpoint(path, new_checkpoint=False, save_dir=None):
     else:
         checkpoint_dir = os.path.join(save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
-    os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
     logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
 
     return state, checkpoint_dir

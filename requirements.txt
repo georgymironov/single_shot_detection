@@ -6,6 +6,6 @@ numpy
 onnx
 pandas
 tensorboardX
-torch
+torch>=1.0.0
 torchvision
 tqdm
