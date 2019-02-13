@@ -122,7 +122,7 @@ def _remove_batchnorm_channel(module, indexes):
 
     module.num_features = module.num_features - len(indexes)
 
-class Prunner(object):
+class Pruner(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
     _affected_out_node_types = ['onnx::Conv']
 
