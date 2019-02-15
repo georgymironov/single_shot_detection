@@ -1,10 +1,7 @@
 import functools
-import os
 
 import torch.nn as nn
 import torch.nn.functional as F
-
-from bf.utils.convert_weights import from_keras
 
 
 class _conv_bn(nn.Module):
@@ -128,7 +125,7 @@ class MobileNetV2(nn.Module):
         )
 
         if self.include_top:
-            self.logits = nn.Linear(1280, classes)
+            self.logits = nn.Linear(depth(1280), classes)
 
         if init_weights:
             self.init()
@@ -140,7 +137,7 @@ class MobileNetV2(nn.Module):
             return x
 
         x = F.adaptive_avg_pool2d(x, (1, 1))
-        x = x.view(-1, 1280)
+        x = x.view(x.size(0), -1)
         x = self.logits(x)
         return F.softmax(x)
 
@@ -155,24 +152,12 @@ class MobileNetV2(nn.Module):
         self.apply(self.init_layer)
 
     def init_from_keras(self):
-        try:
-            os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-            from keras import backend as K
-            cfg = K.tf.ConfigProto()
-            cfg.gpu_options.allow_growth = True
-            K.set_session(K.tf.Session(config=cfg))
-
-            from keras.applications.mobilenet_v2 import MobileNetV2 as MobileNetV2_keras
-            s = self.input_shape
-            model = MobileNetV2_keras(
-                input_shape=(s[1], s[2], s[0]),
-                alpha=self.depth_multiplier,
-                include_top=self.include_top,
-                classes=self.classes)
-
-            state_dict = self.state_dict()
-            self.load_state_dict(from_keras(model).to(state_dict).mobilenet_v2())
-        finally:
-            del model
-            K.get_session().close()
-            K.tf.reset_default_graph()
+        from bf.utils.convert_weights import from_keras
+        converter = from_keras().mobilenet_v2(
+            input_shape=self.input_shape,
+            classes=self.classes,
+            include_top=self.include_top,
+            depth_multiplier=self.depth_multiplier
+        )
+        state_dict = self.state_dict()
+        self.load_state_dict(converter.to(state_dict))

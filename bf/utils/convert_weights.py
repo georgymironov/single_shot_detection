@@ -1,18 +1,22 @@
+from collections import namedtuple
 import logging
+import os
 
 import torch
 
 
+LayerMap = namedtuple('LayerMap', ['type', 'src', 'dst'])
+
 class from_keras(object):
     state_dict = None
 
-    def __init__(self, model):
-        self.model = model
-        self.source_layers = [x.name for x in model.layers]
+    def __init__(self):
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+        from keras import backend as K
 
-    def to(self, state_dict):
-        self.state_dict = state_dict
-        return self
+        cfg = K.tf.ConfigProto()
+        cfg.gpu_options.allow_growth = True
+        K.set_session(K.tf.Session(config=cfg))
 
     def _get_weights(self, name):
         if name not in self.source_layers:
@@ -62,26 +66,51 @@ class from_keras(object):
             elif name.endswith('/bias:0'):
                 self._set_weight(weight, src=name, dst=f'{dst}.bias')
 
-    def mobilenet_v2(self):
-        self._set_conv(src='Conv1', dst='features.0.conv')
-        self._set_bn(src='bn_Conv1', dst='features.0.bn')
-        self._set_conv(src='expanded_conv_depthwise', dst='features.1.depthwise_conv')
-        self._set_bn(src='expanded_conv_depthwise_BN', dst='features.1.depthwise_bn')
-        self._set_conv(src='expanded_conv_project', dst='features.1.project_conv')
-        self._set_bn(src='expanded_conv_project_BN', dst='features.1.project_bn')
+    def mobilenet_v2(self, input_shape, classes, include_top=False, depth_multiplier=1.0):
+        from keras.applications.mobilenet_v2 import MobileNetV2
+
+        self.model = MobileNetV2(
+            input_shape=(input_shape[1], input_shape[2], input_shape[0]),
+            alpha=depth_multiplier,
+            include_top=include_top,
+            classes=classes)
+
+        self.source_layers = [x.name for x in self.model.layers]
+
+        self.mapping = [
+            LayerMap(type='conv', src='Conv1', dst='features.0.conv'),
+            LayerMap(type='bn', src='bn_Conv1', dst='features.0.bn'),
+            LayerMap(type='conv', src='expanded_conv_depthwise', dst='features.1.depthwise_conv'),
+            LayerMap(type='bn', src='expanded_conv_depthwise_BN', dst='features.1.depthwise_bn'),
+            LayerMap(type='conv', src='expanded_conv_project', dst='features.1.project_conv'),
+            LayerMap(type='bn', src='expanded_conv_project_BN', dst='features.1.project_bn'),
+        ]
 
         for i in range(2, 18):
-            self._set_conv(src=f'block_{i-1}_expand', dst=f'features.{i}.expand_conv')
-            self._set_bn(src=f'block_{i-1}_expand_BN', dst=f'features.{i}.expand_bn')
-            self._set_conv(src=f'block_{i-1}_depthwise', dst=f'features.{i}.depthwise_conv')
-            self._set_bn(src=f'block_{i-1}_depthwise_BN', dst=f'features.{i}.depthwise_bn')
-            self._set_conv(src=f'block_{i-1}_project', dst=f'features.{i}.project_conv')
-            self._set_bn(src=f'block_{i-1}_project_BN', dst=f'features.{i}.project_bn')
+            self.mapping.append(LayerMap(type='conv', src=f'block_{i-1}_expand', dst=f'features.{i}.expand_conv'))
+            self.mapping.append(LayerMap(type='bn', src=f'block_{i-1}_expand_BN', dst=f'features.{i}.expand_bn'))
+            self.mapping.append(LayerMap(type='conv', src=f'block_{i-1}_depthwise', dst=f'features.{i}.depthwise_conv'))
+            self.mapping.append(LayerMap(type='bn', src=f'block_{i-1}_depthwise_BN', dst=f'features.{i}.depthwise_bn'))
+            self.mapping.append(LayerMap(type='conv', src=f'block_{i-1}_project', dst=f'features.{i}.project_conv'))
+            self.mapping.append(LayerMap(type='bn', src=f'block_{i-1}_project_BN', dst=f'features.{i}.project_bn'))
 
-        self._set_conv(src='Conv_1', dst='features.18.conv')
-        self._set_bn(src='Conv_1_bn', dst='features.18.bn')
+        self.mapping.append(LayerMap(type='conv', src='Conv_1', dst='features.18.conv'))
+        self.mapping.append(LayerMap(type='bn', src='Conv_1_bn', dst='features.18.bn'))
 
-        if 'logits.weight' in self.state_dict:
-            self._set_fc(src='Logits', dst='logits')
+        if include_top:
+            self.mapping.append(LayerMap(type='fc', src='Logits', dst='logits'))
+
+        return self
+
+    def to(self, state_dict):
+        self.state_dict = state_dict
+
+        for layer in self.mapping:
+            if layer.type == 'conv':
+                self._set_conv(layer.src, layer.dst)
+            if layer.type == 'bn':
+                self._set_bn(layer.src, layer.dst)
+            if layer.type == 'fc':
+                self._set_fc(layer.src, layer.dst)
 
         return self.state_dict
