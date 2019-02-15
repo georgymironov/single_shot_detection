@@ -1,7 +1,9 @@
 from jpeg4py import JPEG
+
+import torch
 from torch.utils.data import Dataset
 
-from bf.utils import dataset_utils
+from bf.utils import image_utils
 
 
 class DetectionDataset(Dataset):
@@ -24,7 +26,10 @@ class DetectionDataset(Dataset):
 
     @staticmethod
     def collate(batch):
-        return dataset_utils.collate_detections(batch)
+        imgs, targets = zip(*batch)
+        imgs = torch.stack(imgs, dim=0)
+        targets = list(targets)
+        return imgs, targets
 
     def display(self, index):
-        dataset_utils.display(*self[index])
+        image_utils.display(*self[index])

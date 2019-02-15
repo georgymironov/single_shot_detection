@@ -4,7 +4,7 @@ import os
 
 import cv2
 
-from . import dataset_utils
+from . import image_utils
 
 
 def _is_video(f):
@@ -38,7 +38,7 @@ class VideoViewer(object):
 
                 prediction = self.predictor.predict_single(rgb)
 
-                result = dataset_utils.display(rgb, prediction)
+                result = image_utils.display(rgb, prediction)
 
                 if result & 0xFF == ord('Q'):
                     stop = True

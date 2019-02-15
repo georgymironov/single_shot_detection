@@ -33,9 +33,3 @@ def display(img, target):
 
     cv2.imshow('image', img[..., [2, 1, 0]])
     return cv2.waitKey(0)
-
-def collate_detections(batch):
-    imgs, targets = zip(*batch)
-    imgs = torch.stack(imgs, dim=0)
-    targets = list(targets)
-    return imgs, targets

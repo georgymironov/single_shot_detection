@@ -27,3 +27,6 @@ def filter_ctor_args(Class):
         kwargs = {k: v for k, v in kwargs.items() if k in Class.__init__.__code__.co_varnames}
         return Class(*args, **kwargs)
     return wrapper_function
+
+def get_ctor(module, name):
+    return filter_ctor_args(getattr(module, name))
