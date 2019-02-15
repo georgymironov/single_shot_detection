@@ -28,13 +28,12 @@ class from_keras(object):
                    layer.get_weights())
 
     def _set_weight(self, weight, src, dst, permute=None):
-        if dst in self.state_dict:
-            weight_tensor = torch.tensor(weight, dtype=torch.float32)
-            if permute:
-                weight_tensor = weight_tensor.permute(permute)
-            assert weight_tensor.size() == self.state_dict[dst].size()
-            self.state_dict[dst] = weight_tensor
-            logging.debug(f'{src} -> {dst}')
+        weight_tensor = torch.tensor(weight, dtype=torch.float32)
+        if permute:
+            weight_tensor = weight_tensor.permute(permute)
+        assert weight_tensor.size() == self.state_dict[dst].size()
+        self.state_dict[dst] = weight_tensor
+        logging.debug(f'{src} -> {dst}')
 
     def _set_conv(self, src, dst):
         weights = self._get_weights(src)
@@ -65,6 +64,33 @@ class from_keras(object):
                 self._set_weight(weight, src=name, dst=f'{dst}.weight', permute=(1, 0))
             elif name.endswith('/bias:0'):
                 self._set_weight(weight, src=name, dst=f'{dst}.bias')
+
+    def mobilenet(self, input_shape, classes, include_top=False, depth_multiplier=1.0):
+        from keras.applications.mobilenet import MobileNet
+
+        self.model = MobileNet(
+            input_shape=(input_shape[1], input_shape[2], input_shape[0]),
+            alpha=depth_multiplier,
+            include_top=include_top,
+            classes=classes)
+
+        self.source_layers = [x.name for x in self.model.layers]
+
+        self.mapping = [
+            LayerMap(type='conv', src='conv1', dst='features.0.conv'),
+            LayerMap(type='bn', src='conv1_bn', dst='features.0.bn'),
+        ]
+
+        for i in range(1, 14):
+            self.mapping.append(LayerMap(type='conv', src=f'conv_dw_{i}', dst=f'features.{i}.depthwise_conv'))
+            self.mapping.append(LayerMap(type='bn', src=f'conv_dw_{i}_bn', dst=f'features.{i}.depthwise_bn'))
+            self.mapping.append(LayerMap(type='conv', src=f'conv_pw_{i}', dst=f'features.{i}.pointwise_conv'))
+            self.mapping.append(LayerMap(type='bn', src=f'conv_pw_{i}_bn', dst=f'features.{i}.pointwise_bn'))
+
+        if include_top:
+            self.mapping.append(LayerMap(type='conv', src='conv_preds', dst='logits'))
+
+        return self
 
     def mobilenet_v2(self, input_shape, classes, include_top=False, depth_multiplier=1.0):
         from keras.applications.mobilenet_v2 import MobileNetV2
