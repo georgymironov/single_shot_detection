@@ -1,9 +1,12 @@
+import argparse
 import datetime
 import importlib
 import logging
 import os
 import re
 import sys
+
+from bf.utils.config_wrapper import ConfigWrapper
 
 import torch
 
@@ -16,20 +19,23 @@ def _get_checkpoint(checkpoint_dir):
         return os.path.join(checkpoint_dir, checkpoint[0])
     return None
 
-def load_config(path):
-    if not os.path.exists(path):
-        logging.error(f'XX File does not exist {path}')
+def load_config(args):
+    if not os.path.exists(args.config):
+        logging.error(f'XX File does not exist {args.config}')
         sys.exit(1)
 
-    logging.info(f'>> Loading configuration from {path}')
-    config_spec = importlib.util.spec_from_file_location('config', path)
+    logging.info(f'>> Loading configuration from {args.config}')
+    config_spec = importlib.util.spec_from_file_location('config', args.config)
     config = importlib.util.module_from_spec(config_spec)
     config_spec.loader.exec_module(config)
 
+    config = ConfigWrapper(config)
+    config.set_phases(args.phases)
+
     return config
 
-def init_checkpoint(path, new_checkpoint=False, save_dir=None):
-    checkpoint = _get_checkpoint(path) if path else None
+def init_checkpoint(args):
+    checkpoint = _get_checkpoint(args.checkpoint_dir) if args.checkpoint_dir else None
 
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
@@ -37,12 +43,15 @@ def init_checkpoint(path, new_checkpoint=False, save_dir=None):
     else:
         state = {}
 
-    if state and not new_checkpoint:
-        checkpoint_dir = path
+    if state and not args.new_checkpoint:
+        checkpoint_dir = args.checkpoint_dir
     else:
-        checkpoint_dir = os.path.join(save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
+        checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
     logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
+
+    if not args.debug and 'train' in args.phases:
+        init_file_logger(checkpoint_dir)
 
     return state, checkpoint_dir
 
@@ -51,3 +60,21 @@ def init_file_logger(log_dir):
     log_path = os.path.join(log_dir, 'train.log')
     file_handler = logging.FileHandler(log_path)
     logging.getLogger().addHandler(file_handler)
+
+def get_default_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='./config.py')
+    parser.add_argument('--save_dir', type=str, default='./experiments')
+    parser.add_argument('--checkpoint_dir', type=str)
+    parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
+    parser.add_argument('--video', type=str)
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--new_checkpoint', action='store_true')
+    parser.add_argument('--tensorboard', action='store_true')
+    return parser
+
+def init_logger(args):
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)

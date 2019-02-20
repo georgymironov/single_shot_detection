@@ -22,6 +22,7 @@ class VideoViewer(object):
         else:
             self.paths = [path]
 
+        predictor.model.eval()
         self.predictor = predictor
 
     def run(self):

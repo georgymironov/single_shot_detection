@@ -48,6 +48,8 @@ def init(device,
             logging.info('===> Loading model weights from checkpoint')
             detector.load_state_dict(state['model_dict'])
 
+    logging.info(detector)
+
     sampler = getattr(detection.sampler, sampler_params['name'])
     kwargs = {k: v for k, v in sampler_params.items() if k in sampler.__code__.co_varnames}
     sampler = functools.partial(sampler, **kwargs)

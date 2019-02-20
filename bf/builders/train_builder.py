@@ -22,6 +22,8 @@ def create_optimizer(model,
         logging.info('===> Loading optimizer weights from checkpoint')
         optimizer.load_state_dict(state['optimizer_dict'])
 
+    logging.info(optimizer)
+
     return optimizer
 
 def create_scheduler(scheduler_params, optimizer, state={}):

@@ -47,6 +47,7 @@ class Trainer(EventEmitter):
     def resume(self, initial_epoch, initial_step):
         self.state['epoch'] = initial_epoch
         self.state['global_step'] = initial_step
+        logging.info(f'>> Resuming from: step: {initial_epoch}, epoch: {initial_epoch}')
 
     def _train_epoch(self, dataloader, num_batches=None):
         start = time.time()
