@@ -28,6 +28,7 @@ def init(device,
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
+        del state['model']
     elif 'model' in model_params['detector']:
         logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
         detector = torch.load(model_params['detector']['model'])
@@ -47,7 +48,9 @@ def init(device,
         if 'model_dict' in state:
             logging.info('===> Loading model weights from checkpoint')
             detector.load_state_dict(state['model_dict'])
+            del state['model_dict']
 
+    torch.cuda.empty_cache()
     logging.info(detector)
 
     sampler = getattr(detection.sampler, sampler_params['name'])

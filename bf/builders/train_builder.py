@@ -1,5 +1,7 @@
 import logging
 
+import torch
+
 from bf.training import optimizers, schedulers
 
 
@@ -21,6 +23,8 @@ def create_optimizer(model,
     if 'optimizer_dict' in state:
         logging.info('===> Loading optimizer weights from checkpoint')
         optimizer.load_state_dict(state['optimizer_dict'])
+        del state['optimizer_dict']
+        torch.cuda.empty_cache()
 
     logging.info(optimizer)
 

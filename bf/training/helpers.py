@@ -40,6 +40,9 @@ def init_checkpoint(args):
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
         state = torch.load(checkpoint)
+        if 'model' in state and 'model_dict' in state:
+            del state['model_dict']
+            torch.cuda.empty_cache()
     else:
         state = {}
 
