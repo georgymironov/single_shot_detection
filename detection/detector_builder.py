@@ -3,7 +3,8 @@ import functools
 import torch.nn as nn
 
 from bf.modules import conv
-from bf.modules.features import FeaturePyramid, Features
+from bf.modules import features as _features
+from bf.utils.misc_utils import get_ctor
 from detection.detector import Detector
 
 import detection.retina_net
@@ -13,10 +14,7 @@ import detection.ssd
 def build(base,
           anchor_generator_params,
           num_classes,
-          source_layers,
-          last_feature_layer=None,
-          fpn_layers=None,
-          fpn_channels=256,
+          features,
           depth_multiplier=1.0,
           use_depthwise=False,
           extras={},
@@ -24,20 +22,14 @@ def build(base,
 
     extra_layers = extras.get('layers', [])
 
-    if fpn_layers is not None:
-        assert fpn_layers >= len(source_layers)
-        features = FeaturePyramid(base,
-                                  source_layers,
-                                  fpn_layers,
-                                  fpn_channels,
-                                  last_feature_layer=last_feature_layer)
-        num_scales = fpn_layers + len(extra_layers)
-    else:
-        features = Features(base,
-                            source_layers,
-                            last_feature_layer=last_feature_layer)
-        num_scales = len(source_layers) + len(extra_layers)
+    # backward compatibility
+    # ToDo: remove
+    source_layers = features['out_layers']
 
+    Features = get_ctor(_features, features['name'])
+    features = Features(base, **features)
+
+    num_scales = features.num_outputs + len(extra_layers)
     source_out_channels = features.get_out_channels()
 
     anchor_generator = getattr(detection, anchor_generator_params['type']).anchor_generator

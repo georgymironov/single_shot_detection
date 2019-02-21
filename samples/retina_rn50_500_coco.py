@@ -7,7 +7,7 @@ model = {
         'weight': 'torchvision'
     },
     'detector': {
-        'num_classes': 21,
+        'num_classes': 81,
         'use_depthwise': False,
         'features': {
             'name': 'FeaturePyramid',
@@ -85,20 +85,19 @@ input_size = (500, 500)
 
 dataset = {
     'train': {
-        'name': 'Voc',
-        'root': '{HOME}/documents/pascal-voc',
-        'image_sets': [(2007, 'trainval'), (2012, 'trainval')]
+        'name': 'Coco',
+        'root': '{HOME}/documents/coco2017'
     },
     'eval': {
-        'name': 'Voc',
-        'root': '{HOME}/documents/pascal-voc',
-        'image_sets': [(2007, 'test')]
+        'name': 'Coco',
+        'root': '{HOME}/documents/coco2017',
+        'val': True
     }
 }
 
 batch_size = 16
 shuffle = True
-num_workers = 4
+num_workers = 8
 
 train = {
     'accumulation_steps': 1,
@@ -114,7 +113,7 @@ train = {
 
     'scheduler': {
         'name': 'MultiStepLR',
-        'milestones': [30, 60],
+        'milestones': [40, 80],
         'gamma': 0.1
     }
 }

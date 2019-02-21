@@ -23,6 +23,8 @@ class Features(nn.Module):
         self.base = nn.Sequential(*feature_layers)
         self.out_layers = out_layers
 
+        self.num_outputs = len(out_layers)
+
     def forward(self, x):
         with torch.jit.scope('Sequential[base]'):
             sources, x = get_multiple_outputs(self.base, x, self.out_layers)
@@ -34,11 +36,16 @@ class Features(nn.Module):
         return [x.size(1) for x in sources]
 
 class FeaturePyramid(Features):
-    def __init__(self, base, out_layers, pyramid_layers, pyramid_channels, **kwargs):
+    def __init__(self, base, out_layers, pyramid_layers, pyramid_channels, interpolation_mode='nearest', **kwargs):
         super(FeaturePyramid, self).__init__(base, out_layers, **kwargs)
+
+        assert pyramid_layers >= len(out_layers)
 
         self.pyramid_layers = pyramid_layers
         self.pyramid_channels = pyramid_channels
+        self.interpolation_mode = interpolation_mode
+
+        self.num_outputs = pyramid_layers
 
         self.pyramid_lateral = nn.ModuleList()
         self.pyramid_output = nn.ModuleList()

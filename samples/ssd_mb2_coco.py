@@ -8,7 +8,10 @@ model = {
     'detector': {
         'num_classes': 81,
         'use_depthwise': True,
-        'source_layers': ([13, 'expand_relu'], 18),
+        'features': {
+            'name': 'Features',
+            'out_layers': ([13, 'expand_relu'], 18),
+        },
         'extras': {
             'layers': (('s', 512), ('s', 256), ('s', 256), ('s', 128))
         }
