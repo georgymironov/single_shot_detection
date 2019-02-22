@@ -1,3 +1,4 @@
+import functools
 import itertools
 
 import torch
@@ -45,6 +46,7 @@ class FeaturePyramid(Features):
                  interpolation_mode='nearest',
                  use_depthwise=False,
                  activation={'name': 'ReLU', 'args': {'inplace': True}},
+                 initializer={'name': 'xavier_normal_'},
                  **kwargs):
         super(FeaturePyramid, self).__init__(base, out_layers, **kwargs)
 
@@ -79,6 +81,16 @@ class FeaturePyramid(Features):
                                                padding=1,
                                                stride=2,
                                                activation_params=activation))
+
+        initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
+
+        def _init_layer(layer):
+            if isinstance(layer, nn.Conv2d):
+                initializer_(layer.weight)
+                layer.bias is not None and nn.init.zeros_(layer.bias)
+
+        self.pyramid_lateral.apply(_init_layer)
+        self.pyramid_output.apply(_init_layer)
 
     def forward(self, feature):
         sources, _ = super(FeaturePyramid, self).forward(feature)
