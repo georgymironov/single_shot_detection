@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from bf.modules import conv
 from bf.utils.torch_utils import get_multiple_outputs
 
 
@@ -36,7 +37,15 @@ class Features(nn.Module):
         return [x.size(1) for x in sources]
 
 class FeaturePyramid(Features):
-    def __init__(self, base, out_layers, pyramid_layers, pyramid_channels, interpolation_mode='nearest', **kwargs):
+    def __init__(self,
+                 base,
+                 out_layers,
+                 pyramid_layers,
+                 pyramid_channels,
+                 interpolation_mode='nearest',
+                 use_depthwise=False,
+                 activation={'name': 'ReLU', 'args': {'inplace': True}},
+                 **kwargs):
         super(FeaturePyramid, self).__init__(base, out_layers, **kwargs)
 
         assert pyramid_layers >= len(out_layers)
@@ -44,6 +53,7 @@ class FeaturePyramid(Features):
         self.pyramid_layers = pyramid_layers
         self.pyramid_channels = pyramid_channels
         self.interpolation_mode = interpolation_mode
+        self.use_depthwise = use_depthwise
 
         self.num_outputs = pyramid_layers
 
@@ -52,20 +62,23 @@ class FeaturePyramid(Features):
 
         base_out_channels = super(FeaturePyramid, self).get_out_channels()
 
+        conv_op = conv.DepthwiseConv2dBn if self.use_depthwise else conv.Conv2dBn
+
         for in_channels in base_out_channels:
             self.pyramid_lateral.append(nn.Conv2d(in_channels, pyramid_channels, kernel_size=1))
-            self.pyramid_output.append(nn.Conv2d(pyramid_channels, pyramid_channels, kernel_size=3, padding=1))
+            self.pyramid_output.append(conv_op(pyramid_channels,
+                                               pyramid_channels,
+                                               kernel_size=3,
+                                               padding=1,
+                                               activation_params=activation))
 
         for i in range(pyramid_layers - len(base_out_channels)):
-            if i == 0:
-                self.pyramid_output.append(
-                    nn.Conv2d(pyramid_channels, pyramid_channels, kernel_size=3, padding=1, stride=2)
-                )
-            else:
-                self.pyramid_output.append(nn.Sequential(
-                    nn.ReLU(inplace=True),
-                    nn.Conv2d(pyramid_channels, pyramid_channels, kernel_size=3, padding=1, stride=2)
-                ))
+            self.pyramid_output.append(conv_op(pyramid_channels,
+                                               pyramid_channels,
+                                               kernel_size=3,
+                                               padding=1,
+                                               stride=2,
+                                               activation_params=activation))
 
     def forward(self, feature):
         sources, _ = super(FeaturePyramid, self).forward(feature)

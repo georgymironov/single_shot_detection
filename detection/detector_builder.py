@@ -15,7 +15,6 @@ def build(base,
           anchor_generator_params,
           num_classes,
           features,
-          depth_multiplier=1.0,
           use_depthwise=False,
           extras={},
           predictor={}):
@@ -27,7 +26,7 @@ def build(base,
     source_layers = features['out_layers']
 
     Features = get_ctor(_features, features['name'])
-    features = Features(base, **features)
+    features = Features(base, use_depthwise=use_depthwise, **features)
 
     num_scales = features.num_outputs + len(extra_layers)
     source_out_channels = features.get_out_channels()
@@ -38,7 +37,7 @@ def build(base,
     assert num_scales == len(priors)
     num_boxes = [x.num_boxes for x in priors]
 
-    extras = get_extras(source_out_channels, use_depthwise, depth_multiplier, **extras)
+    extras = get_extras(source_out_channels, use_depthwise=use_depthwise, **extras)
     predictor, heads = get_predictor(source_out_channels, num_boxes, num_classes, use_depthwise, **predictor)
 
     return Detector(num_classes,
@@ -51,7 +50,6 @@ def build(base,
 
 def get_extras(source_out_channels,
                use_depthwise=False,
-               depth_multiplier=1.0,
                layers=(),
                activation={'name': 'ReLU', 'args': {'inplace': True}},
                batch_norm={}):
@@ -59,11 +57,10 @@ def get_extras(source_out_channels,
     in_channels = source_out_channels[-1]
     extra_layers = layers
 
-    for type_, depth in extra_layers:
-        if depth is None:
+    for type_, out_channels in extra_layers:
+        if out_channels is None:
             continue
 
-        out_channels = int(depth * depth_multiplier)
         layers = []
 
         layers.append(conv.Conv2dBn(in_channels, out_channels // 2, kernel_size=1, bias=False,
