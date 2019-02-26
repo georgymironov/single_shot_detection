@@ -6,7 +6,7 @@ from bf.utils.misc_utils import filter_ctor_args
 
 
 class ConcatDataset(TorchDataset):
-    def __init__(self, datasets, labels, label_map=None, resize=None, augment=None, preprocess=None):
+    def __init__(self, datasets, labels, label_map={}, resize=None, augment=None, preprocess=None):
         self.class_labels = ['background'] + list(labels)
         self.num_classes = len(self.class_labels)
 

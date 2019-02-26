@@ -28,7 +28,7 @@ def create_dataloaders(data_params,
     def _build_dataloader(dataset_params,
                           phase,
                           labels=None,
-                          label_map=None):
+                          label_map={}):
         Dataset = getattr(bf.datasets, dataset_params['name'])
 
         kwargs = dict(dataset_params.items())
@@ -59,6 +59,6 @@ def create_dataloaders(data_params,
             dataset[phase], dataloader[phase] = _build_dataloader(data_params[phase],
                                                                   phase,
                                                                   labels=data_params.get('labels'),
-                                                                  label_map=data_params.get('label_map'))
+                                                                  label_map=data_params.get('label_map', {}))
 
     return dataloader, dataset
