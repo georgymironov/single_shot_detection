@@ -152,27 +152,27 @@ def add_output(model_file, config):
         intersecion = [x for x, y in zip(score_path, loc_path) if x == y]
         source_layers.append(intersecion[-1])
 
-    detector_cfg = config.model['detector']
+    archors_cfg = config.model['anchor_generator']
     num_scales = len(source_layers)
 
     last_id = max(int(x['id']) for x in layers)
 
-    if 'min_scale' in detector_cfg and 'max_scale' in detector_cfg:
+    if 'min_scale' in archors_cfg and 'max_scale' in archors_cfg:
         assert config.input_size[0] == config.input_size[1]
-        scales = np.linspace(detector_cfg['min_scale'], detector_cfg['max_scale'], num_scales + 1)
+        scales = np.linspace(archors_cfg['min_scale'], archors_cfg['max_scale'], num_scales + 1)
         sizes = scales * config.input_size[0]
-    elif 'sizes' in detector_cfg:
-        assert len(detector_cfg['sizes']) == num_scales + 1
-        sizes = detector_cfg['sizes']
+    elif 'sizes' in archors_cfg:
+        assert len(archors_cfg['sizes']) == num_scales + 1
+        sizes = archors_cfg['sizes']
     else:
         raise KeyError('Either size or scale should be specified')
 
     variance = ','.join(operator.add(*[[str(1 / float(config.box_coder[x]))] * 2 for x in ['xy_scale', 'wh_scale']]))
-    num_branches = detector_cfg.get('num_branches', [1] * num_scales)
+    num_branches = archors_cfg.get('num_branches', [1] * num_scales)
 
     prior_boxes = []
     prior_box_out_sizes = []
-    for i, (source, ar, nb, loc_head) in enumerate(zip(source_layers, detector_cfg['aspect_ratios'], num_branches, loc_heads)):
+    for i, (source, ar, nb, loc_head) in enumerate(zip(source_layers, archors_cfg['aspect_ratios'], num_branches, loc_heads)):
         _ar = ','.join(str(x) for x in ar if x > 1.0)
         _sizes = np.linspace(sizes[i], sizes[i + 1], nb + 1)
         min_size = ','.join(str(x) for x in _sizes[:-1])
@@ -246,7 +246,7 @@ def add_output(model_file, config):
         max_total=config.postprocess['max_total'],
         max_per_class=config.postprocess['nms']['max_per_class'],
         overlap_threshold=config.postprocess['nms']['overlap_threshold'],
-        num_classes=detector_cfg['num_classes'],
+        num_classes=config.model['detector']['num_classes'],
         size_locs=locs_output_size,
         size_classes=score_output_size,
         size_boxes=pb_total_size
