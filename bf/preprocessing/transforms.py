@@ -91,6 +91,13 @@ class ToUint8(Transform):
     def apply(self, sample):
         return sample[0].astype('uint8'), sample[1]
 
+class RandomRotate(DynamicTransform):
+    def __init__(self, **kwargs):
+        super(RandomRotate, self).__init__(**kwargs)
+
+    def apply(self, sample):
+        return functional.random_rotate(sample, self.target_functional.rotate)
+
 class RandomCrop(RandomDynamicTransform):
     def __init__(self,
                  min_iou=.5,

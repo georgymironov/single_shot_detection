@@ -1,3 +1,5 @@
+import types
+
 from torch.utils.data import Dataset as TorchDataset
 from torch.utils.data import ConcatDataset as TorchConcatDataset
 
@@ -19,6 +21,9 @@ class ConcatDataset(TorchDataset):
                 assert self.collate is Dataset.collate
             else:
                 self.collate = Dataset.collate
+
+            if not hasattr(self, 'display'):
+                self.display = types.MethodType(Dataset.display, self)
 
             Dataset = filter_ctor_args(Dataset)
             kwargs = dict(dataset_args.items())

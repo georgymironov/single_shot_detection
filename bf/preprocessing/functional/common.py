@@ -34,6 +34,24 @@ def vertical_flip(sample, target_fn=None):
 
     return img, target
 
+def random_rotate(sample, target_fn=None):
+    img, target = sample
+    height, width = img.shape[:2]
+    assert height == width
+
+    angle = random.randrange(4) * 90
+
+    if angle == 0:
+        return img, target
+
+    M = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
+    img = cv2.warpAffine(img, M, (width, height))
+
+    if target_fn is not None:
+        target = target_fn(target, width, height, angle)
+
+    return img, target
+
 def random_crop(sample,
                 target_fn=None,
                 aspect_ratio_range=(0.5, 2.),
