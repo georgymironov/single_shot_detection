@@ -1,5 +1,6 @@
-from jpeg4py import JPEG
+import logging
 
+from jpeg4py import JPEG
 import torch
 from torch.utils.data import Dataset
 
@@ -18,6 +19,9 @@ class DetectionDataset(Dataset):
             img, target = self.resize((img, target))
         if self.preprocess:
             img, target = self.preprocess((img, target))
+
+        if (target[..., :4] < 0).any():
+            logging.warn(f'WW Negative values for target: {annotation["image_path"]}')
 
         return img, target
 

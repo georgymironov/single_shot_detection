@@ -10,9 +10,9 @@ def resize(path, widht, height):
     img = cv2.imread(path)
     h, w, d = img.shape
 
-    r = min(h / height, w / widht)
-    w /= r
-    h /= r
+    ratio = min(h / height, w / widht)
+    w /= ratio
+    h /= ratio
     w = int(w)
     h = int(h)
 
@@ -20,22 +20,24 @@ def resize(path, widht, height):
     cv2.imwrite(path, img)
 
     with open(path.replace('.jpg', '.xml'), 'r') as f:
-        s = BeautifulSoup(f, 'lxml-xml')
+        soup = BeautifulSoup(f, 'lxml-xml')
 
-    if s.find('width') is None or s.find('height') is None:
+    if soup.find('width') is None or soup.find('height') is None:
         print(path)
         return
 
-    s.find('width').string = str(w)
-    s.find('height').string = str(h)
+    soup.find('width').string = str(w)
+    soup.find('height').string = str(h)
 
-    for a in ['xmin', 'xmax', 'ymin', 'ymax']:
-        for x in s.find_all(a):
+    for attr in ['xmin', 'xmax', 'ymin', 'ymax']:
+        for x in soup.find_all(attr):
             if x is not None:
-                x.string = str(int(float(x.string) / r))
+                new_value = int(float(x.string) / ratio)
+                assert new_value < w and new_value < h
+                x.string = str(new_value)
 
     with open(path.replace('.jpg', '.xml'), 'w') as f:
-        f.write(str(s))
+        f.write(str(soup))
 
 if __name__ == '__main__':
     path, width, height = sys.argv[1:4]

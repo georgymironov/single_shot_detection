@@ -24,7 +24,7 @@ def crop(target, xmin, ymin, width, height, min_iou=0.5, keep_criterion='center_
         return target
 
     region = np.array([xmin, ymin, xmin + width, ymin + height], dtype=np.float32)
-    new_target = np.empty_like(target)
+    new_target = np.zeros_like(target)
     new_target[:, :4] = box_utils.intersection(region[np.newaxis], target[:, :4], zero_incorrect=True).squeeze()
     new_target[:, 4] = target[:, 4]
     jaccard = box_utils.jaccard(target[:, :4], new_target[:, :4], cartesian=False)
@@ -44,8 +44,8 @@ def crop(target, xmin, ymin, width, height, min_iou=0.5, keep_criterion='center_
         new_target[..., [0, 2]] -= xmin
         new_target[..., [1, 3]] -= ymin
         new_target[..., [0, 1]].clip(min=0, out=new_target[..., [0, 1]])
-        new_target[..., 2].clip(max=width, out=new_target[..., 2])
-        new_target[..., 3].clip(max=height, out=new_target[..., 3])
+        new_target[..., 2].clip(max=width - 1, out=new_target[..., 2])
+        new_target[..., 3].clip(max=height - 1, out=new_target[..., 3])
 
         return new_target
 
