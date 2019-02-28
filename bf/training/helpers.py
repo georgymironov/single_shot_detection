@@ -11,12 +11,15 @@ from bf.utils.config_wrapper import ConfigWrapper
 import torch
 
 
-def _get_checkpoint(checkpoint_dir):
-    pattern = re.compile('^ckpt-([0-9]+).pt$')
-    checkpoint = max([(x, int(pattern.match(x)[1])) for x in os.listdir(checkpoint_dir) if pattern.match(x)],
-                     key=lambda x: x[1], default=None)
-    if checkpoint:
-        return os.path.join(checkpoint_dir, checkpoint[0])
+def _get_checkpoint(checkpoint_path):
+    if os.path.isfile(checkpoint_path):
+        return checkpoint_path
+    if os.path.isdir(checkpoint_path):
+        pattern = re.compile('^ckpt-([0-9]+).pt$')
+        checkpoint = max([(x, int(pattern.match(x)[1])) for x in os.listdir(checkpoint_path) if pattern.match(x)],
+                         key=lambda x: x[1], default=None)
+        if checkpoint:
+            return os.path.join(checkpoint_path, checkpoint[0])
     return None
 
 def load_config(args):
@@ -35,7 +38,7 @@ def load_config(args):
     return config
 
 def init_checkpoint(args):
-    checkpoint = _get_checkpoint(args.checkpoint_dir) if args.checkpoint_dir else None
+    checkpoint = _get_checkpoint(args.checkpoint) if args.checkpoint else None
 
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
@@ -46,8 +49,8 @@ def init_checkpoint(args):
     else:
         state = {}
 
-    if state and not args.new_checkpoint:
-        checkpoint_dir = args.checkpoint_dir
+    if state and os.path.isdir(args.checkpoint) and not args.new_checkpoint:
+        checkpoint_dir = args.checkpoint
     else:
         checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
@@ -68,7 +71,7 @@ def get_default_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='./config.py')
     parser.add_argument('--save_dir', type=str, default='./experiments')
-    parser.add_argument('--checkpoint_dir', type=str)
+    parser.add_argument('--checkpoint', type=str)
     parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
     parser.add_argument('--video', type=str)
     parser.add_argument('--debug', action='store_true')
