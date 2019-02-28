@@ -46,6 +46,7 @@ def create_dataloaders(data_params,
                                 collate_fn=dataset.collate,
                                 num_workers=num_workers,
                                 pin_memory=pin_memory,
+                                drop_last=True,
                                 worker_init_fn=lambda worker_id: np.random.seed(seed + worker_id))
 
         return dataset, dataloader
