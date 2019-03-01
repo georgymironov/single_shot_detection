@@ -64,7 +64,10 @@ class FeaturePyramid(Features):
 
         base_out_channels = super(FeaturePyramid, self).get_out_channels()
 
-        conv_op = conv.DepthwiseConv2dBn if self.use_depthwise else conv.Conv2dBn
+        if self.use_depthwise:
+            conv_op = functools.partial(conv.Conv2dBn, groups=pyramid_channels)
+        else:
+            conv_op = conv.Conv2dBn
 
         for in_channels in base_out_channels:
             self.pyramid_lateral.append(nn.Conv2d(in_channels, pyramid_channels, kernel_size=1))

@@ -58,31 +58,33 @@ def get_extras(source_out_channels,
     extra_layers = layers
 
     for type_, out_channels in extra_layers:
-        if out_channels is None:
-            continue
-
         layers = []
 
-        layers.append(conv.Conv2dBn(in_channels, out_channels // 2, kernel_size=1, bias=False,
-                                    activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
-
-        in_channels = out_channels // 2
-
-        if type_ == 's':
+        if type_ == 'm':
+            out_channels = in_channels
+            layers.append(nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+        elif type_ == 's':
+            layers.append(conv.Conv2dBn(in_channels, out_channels // 2, kernel_size=1, bias=False,
+                                        activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
+            in_channels = out_channels // 2
             if use_depthwise:
                 layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, stride=2, padding=1,
                                                      bias=False, activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
             else:
                 layers.append(conv.Conv2dBn(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False,
                                             activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
-
         elif type_ == '':
+            layers.append(conv.Conv2dBn(in_channels, out_channels // 2, kernel_size=1, bias=False,
+                                        activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
+            in_channels = out_channels // 2
             if use_depthwise:
                 layers.append(conv.DepthwiseConv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
                                                      activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
             else:
                 layers.append(conv.Conv2dBn(in_channels, out_channels, kernel_size=3, bias=False,
                                             activation_params=activation, use_bn=True, batch_norm_params=batch_norm))
+        else:
+            raise ValueError(f'Unknown layer type: {type_}')
 
         source_out_channels.append(out_channels)
         extras.append(nn.Sequential(*layers))

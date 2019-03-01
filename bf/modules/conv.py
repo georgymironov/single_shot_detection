@@ -20,6 +20,7 @@ class Conv2dBn(nn.Module):
                               kernel_size=kernel_size,
                               stride=stride,
                               padding=padding,
+                              groups=groups,
                               bias=bias)
         if use_bn:
             self.bn = nn.BatchNorm2d(out_channels, **batch_norm_params)
