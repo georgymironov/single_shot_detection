@@ -54,19 +54,22 @@ def tensorboard(event_emitter, log_dir):
     return writer
 
 def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metric):
-    def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
-        if phase == 'train' and not isinstance(scheduler_, schedulers.ReduceLROnPlateau):
-            scheduler_.step()
-            event_emitter.emit('scheduler_step')
-        if phase == 'eval' and isinstance(scheduler_, schedulers.ReduceLROnPlateau):
-            scheduler_.step(phase_state[scheduler_metric])
-            event_emitter.emit('scheduler_step')
+    if isinstance(scheduler_, schedulers.ReduceLROnPlateau):
+        def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
+            if phase == 'eval':
+                scheduler_.step(phase_state[scheduler_metric])
+                event_emitter.emit('scheduler_step')
 
-    if run_scheduler_each_step:
-        event_name = 'step_start'
-    elif isinstance(scheduler_, schedulers.ReduceLROnPlateau):
         event_name = 'phase_end'
     else:
-        event_name = 'phase_start'
+        def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
+            if phase == 'train':
+                scheduler_.step()
+                event_emitter.emit('scheduler_step')
+
+        if run_scheduler_each_step:
+            event_name = 'step_start'
+        else:
+            event_name = 'phase_start'
 
     event_emitter.add_event_handler(event_name, scheduler_step)

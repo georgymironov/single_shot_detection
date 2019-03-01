@@ -32,7 +32,7 @@ def create_optimizer(model,
 
 def create_scheduler(scheduler_params, optimizer, state={}):
     run_scheduler_each_step = scheduler_params.get('run_each_step', False)
-    scheduler_metric = scheduler_params.get('scheduler_metric', 'loss')
+    scheduler_metric = scheduler_params.get('scheduler_metric', 'eval_loss')
 
     Scheduler = getattr(schedulers, scheduler_params['name'])
     kwargs = {k: v for k, v in scheduler_params.items() if k in Scheduler.__init__.__code__.co_varnames}
