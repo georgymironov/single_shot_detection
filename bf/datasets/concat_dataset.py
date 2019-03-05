@@ -4,7 +4,7 @@ from torch.utils.data import Dataset as TorchDataset
 from torch.utils.data import ConcatDataset as TorchConcatDataset
 
 import bf.datasets
-from bf.utils.misc_utils import filter_ctor_args
+from bf.utils.misc_utils import filter_kwargs
 
 
 class ConcatDataset(TorchDataset):
@@ -25,7 +25,7 @@ class ConcatDataset(TorchDataset):
             if not hasattr(self, 'display'):
                 self.display = types.MethodType(Dataset.display, self)
 
-            Dataset = filter_ctor_args(Dataset)
+            Dataset = filter_kwargs(Dataset)
             kwargs = dict(dataset_args.items())
             kwargs.update({
                 'labels': labels,

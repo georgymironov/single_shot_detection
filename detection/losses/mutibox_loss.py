@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from bf.modules import losses
-from bf.utils.misc_utils import filter_ctor_args
+from bf.utils.misc_utils import get_ctor
 
 
 class MultiboxLoss(nn.Module):
@@ -14,10 +14,10 @@ class MultiboxLoss(nn.Module):
                  localization_weight=1.0):
         super(MultiboxLoss, self).__init__()
 
-        ClassificationLoss = filter_ctor_args(getattr(losses, classification_loss['name']))
+        ClassificationLoss = get_ctor(losses, classification_loss['name'])
         self.classification_loss = ClassificationLoss(reduction='none', ignore_index=-1, **classification_loss)
 
-        LocalizationLoss = filter_ctor_args(getattr(losses, localization_loss['name']))
+        LocalizationLoss = get_ctor(losses, localization_loss['name'])
         self.localization_loss = LocalizationLoss(reduction='sum', **localization_loss)
 
         self.classification_weight = classification_weight
