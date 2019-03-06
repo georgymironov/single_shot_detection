@@ -4,3 +4,6 @@ weights
 tmp
 exported
 config.py
+
+bf/datasets/custom
+bf/datasets/custom/__init__.py
