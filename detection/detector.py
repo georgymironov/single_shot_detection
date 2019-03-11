@@ -96,17 +96,14 @@ class Detector(nn.Module):
         scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
 
-        if not bf.utils.onnx_exporter.is_exporting():
-            priors = torch.cat(priors, dim=0).view(-1, 4)
-
-        scores = scores.view(img.size(0), -1, self.num_classes)
-        scores = F.softmax(scores, dim=-1) if bf.utils.onnx_exporter.is_exporting() else F.log_softmax(scores, dim=-1)
-        scores = scores.view(img.size(0), -1)
-
-        if not bf.utils.onnx_exporter.is_exporting():
-            return scores, locs, priors
-        else:
+        if bf.utils.onnx_exporter.is_exporting():
+            scores = scores.view(img.size(0), -1, self.num_classes)
+            scores = F.softmax(scores, dim=-1)
+            scores = scores.view(img.size(0), -1)
             return scores, locs
+        else:
+            priors = torch.cat(priors, dim=0).view(-1, 4)
+            return scores, locs, priors
 
     @staticmethod
     def init_layer(layer):

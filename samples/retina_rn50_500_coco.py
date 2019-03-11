@@ -7,20 +7,22 @@ model = {
         'weight': 'torchvision'
     },
     'detector': {
-        'num_classes': 81,
+        'num_classes': 80,
         'use_depthwise': False,
         'features': {
             'name': 'FeaturePyramid',
             'out_layers': (5, 6, 7),
             'pyramid_layers': 5,
             'pyramid_channels': 256,
+            'initializer': {'name': 'normal_', 'args': {'mean': 0, 'std': 0.03}}
         },
         'predictor': {
             'num_layers': 4,
             'num_channels': 256,
             'kernel_size': 3,
             'activation': {'name': 'ReLU', 'args': {'inplace': True}},
-            'initializer': {'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}}
+            'initializer': {'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
+            'class_head_bias_init': -4.6
         }
     },
     'anchor_generator': {
@@ -43,7 +45,7 @@ sampler = {
 }
 
 loss = {
-    'classification_loss': {'name': 'SoftmaxFocalLoss', 'gamma': 2.0, 'alpha': 0.75},
+    'classification_loss': {'name': 'SigmoidFocalLoss', 'gamma': 2.0, 'alpha': 0.25},
     'localization_loss': {'name': 'SmoothL1Loss'},
     'classification_weight': 1.0,
     'localization_weight': 1.0
@@ -55,7 +57,8 @@ postprocess = {
     'nms': {
         'max_per_class': 100,
         'overlap_threshold': .5
-    }
+    },
+    'score_converter': 'SIGMOID'
 }
 
 target_assigner = {
@@ -95,9 +98,9 @@ dataset = {
     }
 }
 
-batch_size = 16
+batch_size = 12
 shuffle = True
-num_workers = 8
+num_workers = 4
 
 train = {
     'accumulation_steps': 1,

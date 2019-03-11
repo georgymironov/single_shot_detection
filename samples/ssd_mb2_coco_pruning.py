@@ -26,7 +26,7 @@ sampler = {
 }
 
 loss = {
-    'classification_loss': {'name': 'NLLLoss'},
+    'classification_loss': {'name': 'CrossEntropyLoss'},
     'localization_loss': {'name': 'SmoothL1Loss'},
     'classification_weight': 1.0,
     'localization_weight': 1.0
@@ -38,7 +38,8 @@ postprocess = {
     'nms': {
         'max_per_class': 100,
         'overlap_threshold': .45
-    }
+    },
+    'score_converter': 'SOFTMAX'
 }
 
 target_assigner = {
