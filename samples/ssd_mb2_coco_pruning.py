@@ -97,6 +97,7 @@ train = {
     'accumulation_steps': 1,
     'epochs': 5000,
     'eval_every': 50,
+    'num_batches_per_epoch': 200,
 
     'optimizer': {
         'name': 'SGD',
