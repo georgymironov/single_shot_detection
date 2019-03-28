@@ -27,3 +27,8 @@ def filter_kwargs(func):
 
 def get_ctor(module, name):
     return filter_kwargs(getattr(module, name))
+
+def update_existing(dict1, dict2):
+    for k, v in dict2.items():
+        if k not in dict1:
+            dict1[k] = v
