@@ -26,8 +26,6 @@ class Detector(nn.Module):
         self.priors = priors
         self.source_layers = source_layers
 
-        self.init()
-
     def forward(self, img):
         """
         Args:
@@ -104,13 +102,3 @@ class Detector(nn.Module):
         else:
             priors = torch.cat(priors, dim=0).view(-1, 4)
             return scores, locs, priors
-
-    @staticmethod
-    def init_layer(layer):
-        if isinstance(layer, (nn.Conv2d)):
-            nn.init.xavier_normal_(layer.weight)
-            if layer.bias is not None:
-                nn.init.zeros_(layer.bias)
-
-    def init(self):
-        self.extras.apply(self.init_layer)

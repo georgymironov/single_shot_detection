@@ -26,7 +26,7 @@ def build(base,
     source_layers = features['out_layers']
 
     Features = get_ctor(_features, features['name'])
-    features = Features(base, use_depthwise=use_depthwise, **features)
+    features = Features(base, use_depthwise=use_depthwise, **features).eval()
 
     num_scales = features.num_outputs + len(extra_layers)
     source_out_channels = features.get_out_channels()
@@ -52,6 +52,7 @@ def get_extras(source_out_channels,
                use_depthwise=False,
                layers=(),
                activation={'name': 'ReLU', 'args': {'inplace': True}},
+               initializer={'name': 'xavier_normal_'},
                batch_norm={}):
     extras = nn.ModuleList()
     in_channels = source_out_channels[-1]
@@ -89,6 +90,15 @@ def get_extras(source_out_channels,
         source_out_channels.append(out_channels)
         extras.append(nn.Sequential(*layers))
         in_channels = out_channels
+
+    initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer['args'])
+
+    def _init_extras(layer):
+        if isinstance(layer, nn.Conv2d):
+            initializer_(layer.weight)
+            layer.bias is not None and nn.init.zeros_(layer.bias)
+
+    extras.apply(_init_extras)
 
     return extras
 
