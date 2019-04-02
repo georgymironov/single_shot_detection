@@ -91,7 +91,7 @@ def get_extras(source_out_channels,
         extras.append(nn.Sequential(*layers))
         in_channels = out_channels
 
-    initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer['args'])
+    initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
 
     def _init_extras(layer):
         if isinstance(layer, nn.Conv2d):
@@ -138,14 +138,14 @@ def get_predictor(source_out_channels,
             in_channels = num_channels
         predictor[head] = layers
 
-    activation_ = getattr(nn, activation['name'])(**activation['args'])
+    activation_ = getattr(nn, activation['name'])(**activation.get('args', {}))
 
     if num_layers > 0:
         out_channels = [num_channels] * len(source_out_channels)
     else:
         out_channels = source_out_channels
 
-    initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer['args'])
+    initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
 
     def _init_predictor(layer):
         if isinstance(layer, nn.Conv2d):
