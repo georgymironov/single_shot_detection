@@ -20,7 +20,9 @@ class DetectionDataset(Dataset):
         if self.preprocess:
             img, target = self.preprocess((img, target))
 
-        if (target[..., [0, 1]] >= target[..., [2, 3]]).any():
+        valid_idx = (target[..., [0, 1]] != target[..., [2, 3]]).all(1)
+        target = target[valid_idx]
+        if (target[..., [0, 1]] > target[..., [2, 3]]).any():
             logging.warn(f'WW Invalid values for target: {annotation["image_path"]}')
         if (target[..., :4] < 0).any():
             logging.warn(f'WW Negative values for target: {annotation["image_path"]}')
