@@ -75,9 +75,16 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
     if verbose:
         logging.info('Mean Average Precision results:')
 
-    for class_index in sorted(true_positive.keys()):
-        true_positive[class_index] = torch.tensor(true_positive[class_index], dtype=torch.float32)
-        false_positive[class_index] = torch.tensor(false_positive[class_index], dtype=torch.float32)
+    for class_index in sorted(total_positive.keys()):
+        if class_index in true_positive:
+            true_positive[class_index] = torch.tensor(true_positive[class_index], dtype=torch.float32)
+        else:
+            true_positive[class_index] = torch.tensor([0], dtype=torch.float32)
+
+        if class_index in false_positive:
+            false_positive[class_index] = torch.tensor(false_positive[class_index], dtype=torch.float32)
+        else:
+            false_positive[class_index] = torch.tensor([1], dtype=torch.float32)
 
         precision = true_positive[class_index] / (true_positive[class_index] + false_positive[class_index])
         precision = torch.cat([precision, torch.tensor([0.])])
