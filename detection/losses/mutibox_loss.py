@@ -15,7 +15,7 @@ class MultiboxLoss(nn.Module):
         super(MultiboxLoss, self).__init__()
 
         ClassificationLoss = get_ctor(losses, classification_loss['name'])
-        self.classification_loss = ClassificationLoss(reduction='none', ignore_index=-1, **classification_loss)
+        self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=-1, **classification_loss)
 
         LocalizationLoss = get_ctor(losses, localization_loss['name'])
         self.localization_loss = LocalizationLoss(reduction='sum', **localization_loss)
@@ -45,24 +45,18 @@ class MultiboxLoss(nn.Module):
         classes = classes.view(batch_size, num_priors, -1)
         locs = locs.view(batch_size, num_priors, 4)
 
-        num_classes = classes.size(2)
-
-        classes = classes.view(-1, num_classes)
-        class_loss = self.classification_loss(classes, target_classes.view(-1))
-
-        class_loss = class_loss.view(batch_size, -1)
-        mask = self.sampler(class_loss, target_classes)
-        class_loss = torch.sum(class_loss[mask])
+        mask = self.sampler(classes, target_classes)
+        class_loss = self.classification_loss(classes[mask], target_classes[mask].view(-1))
 
         positive_mask = target_classes.gt(0)
         positive_locs = locs[positive_mask].view(-1, 4)
         positive_target_locs = target_locs[positive_mask].view(-1, 4)
         loc_loss = self.localization_loss(positive_locs, positive_target_locs)
 
-        divider = positive_mask.sum().clamp(min=1).float()
-        loc_loss /= divider
-        class_loss /= divider
+        divider = positive_mask.sum().clamp_(min=1).float()
+        loc_loss.mul_(self.localization_weight).div_(divider)
+        class_loss.mul_(self.classification_weight).div_(divider)
 
-        loss = self.classification_weight * class_loss + self.localization_weight * loc_loss
+        loss = class_loss + loc_loss
 
         return loss, class_loss, loc_loss
