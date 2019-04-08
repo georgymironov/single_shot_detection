@@ -68,7 +68,7 @@ class Postprocessor(object):
             picked = torch.cat(picked, dim=0)
 
             if self.max_total is not None and self.max_total < picked.size(0):
-                _, indexes = torch.topk(picked[:, 4], self.max_total, sorted=True, largest=True)
+                _, indexes = torch.topk(picked[:, 5], self.max_total, sorted=True, largest=True)
                 picked = picked[indexes]
 
             processed.append(picked)
