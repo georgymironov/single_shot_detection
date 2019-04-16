@@ -22,6 +22,7 @@ if __name__ == '__main__':
     helpers.init_logger(args)
     state, checkpoint_dir = helpers.init_checkpoint(args)
     cfg = helpers.load_config(args)
+    cfg.update({'num_gpus': torch.cuda.device_count()})
 
     random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
