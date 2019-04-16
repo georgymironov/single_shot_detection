@@ -40,13 +40,13 @@ def build(base,
     extras = get_extras(source_out_channels, use_depthwise=use_depthwise, **extras)
     predictor, heads = get_predictor(source_out_channels, num_boxes, num_classes, use_depthwise, **predictor)
 
-    return Detector(num_classes,
-                    features,
+    return Detector(features,
                     extras,
                     predictor,
                     heads,
-                    priors,
-                    source_layers)
+                    source_layers,
+                    num_classes=num_classes,
+                    priors=priors)
 
 def get_extras(source_out_channels,
                use_depthwise=False,
