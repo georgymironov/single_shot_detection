@@ -33,7 +33,6 @@ def resize(path, widht, height):
         for x in soup.find_all(attr):
             if x is not None:
                 new_value = int(float(x.string) / ratio)
-                assert new_value < w and new_value < h
                 x.string = str(new_value)
 
     with open(path.replace('.jpg', '.xml'), 'w') as f:
