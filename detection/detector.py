@@ -42,7 +42,8 @@ class Predictor(nn.Module):
             with torch.jit.scope('Sequential[features]'):
                 sources, x = get_multiple_outputs(self.features, img, self.source_layers)
         else:
-            sources, x = self.features(img)
+            with torch.jit.scope(f'{type(self.features).__name__}[features]'):
+                sources, x = self.features(img)
 
         with torch.jit.scope('Sequential[extras]'):
             for i, layer in enumerate(self.extras):
@@ -101,7 +102,8 @@ class Detector(nn.Module):
         self.priors = priors
 
     def forward(self, img):
-        scores, locs, locs_sources = self.predictor.forward(img)
+        with torch.jit.scope('Predictor[predictor]'):
+            scores, locs, locs_sources = self.predictor.forward(img)
         priors = []
 
         if bf.utils.onnx_exporter.is_exporting():
