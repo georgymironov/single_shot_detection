@@ -19,7 +19,8 @@ class Features(nn.Module):
     def __init__(self,
                  base,
                  out_layers,
-                 last_feature_layer=None):
+                 last_feature_layer=None,
+                 initializer={'name': 'xavier_normal_'}):
         super(Features, self).__init__()
 
         assert isinstance(base.features, nn.Sequential)
@@ -31,6 +32,9 @@ class Features(nn.Module):
         self.base = nn.Sequential(*feature_layers)
         self.out_layers = out_layers
         self.num_outputs = len(out_layers)
+
+        initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
+        self.init_layer = functools.partial(_init_layer, initializer_=initializer_)
 
     def forward(self, x):
         with torch.jit.scope('Sequential[base]'):
@@ -90,11 +94,8 @@ class FeaturePyramid(Features):
                                                stride=2,
                                                activation_params=activation))
 
-        initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
-        init_layer = functools.partial(_init_layer, initializer_=initializer_)
-
-        self.pyramid_lateral.apply(init_layer)
-        self.pyramid_output.apply(init_layer)
+        self.pyramid_lateral.apply(self.init_layer)
+        self.pyramid_output.apply(self.init_layer)
 
     def forward(self, x):
         sources, _ = super(FeaturePyramid, self).forward(x)
@@ -111,6 +112,87 @@ class FeaturePyramid(Features):
                 outputs.append(output_layer(outputs[-1]))
 
         return outputs, outputs[-1]
+
+    def get_out_channels(self):
+        return [self.pyramid_channels] * self.pyramid_layers
+
+# ref: https://arxiv.org/pdf/1807.11013.pdf
+class DepthwiseFeaturePyramid(Features):
+    def __init__(self,
+                 base,
+                 out_layers,
+                 pyramid_layers,
+                 pyramid_channels,
+                 interpolation_mode='nearest',
+                 activation={'name': 'ReLU', 'args': {'inplace': True}},
+                 initializer={'name': 'xavier_normal_'},
+                 **kwargs):
+        super(DepthwiseFeaturePyramid, self).__init__(base, out_layers, **kwargs)
+
+        self.pyramid_layers = pyramid_layers
+        self.pyramid_channels = pyramid_channels
+        self.interpolation_mode = interpolation_mode
+        self.pyramid_lateral = nn.ModuleList()
+        self.downsample = nn.ModuleList()
+        self.up_conv = nn.ModuleList()
+
+        self.num_outputs = pyramid_layers
+
+        base_out_channels = super(DepthwiseFeaturePyramid, self).get_out_channels()
+
+        for in_channels in base_out_channels:
+            self.pyramid_lateral.append(nn.Conv2d(in_channels, pyramid_channels, kernel_size=1))
+
+        for _ in range(pyramid_layers - len(out_layers)):
+            paths = nn.ModuleList()
+            paths.append(nn.Sequential(
+                nn.MaxPool2d(kernel_size=2),
+                conv.Conv2dBn(pyramid_channels,
+                              pyramid_channels // 2,
+                              kernel_size=1,
+                              activation_params=activation)))
+            paths.append(conv.DepthwiseConv2dBn(pyramid_channels,
+                                                pyramid_channels // 2,
+                                                kernel_size=3,
+                                                stride=2,
+                                                padding=1,
+                                                activation_params=activation))
+            self.downsample.append(paths)
+
+        for _ in range(pyramid_layers - 1):
+            self.up_conv.append(conv.Conv2dBn(pyramid_channels,
+                                              pyramid_channels,
+                                              kernel_size=3,
+                                              padding=1,
+                                              groups=pyramid_channels,
+                                              activation_params=activation))
+
+        self.pyramid_lateral.apply(self.init_layer)
+        self.downsample.apply(self.init_layer)
+        self.up_conv.apply(self.init_layer)
+
+    def forward(self, x):
+        sources, _ = super(DepthwiseFeaturePyramid, self).forward(x)
+        features = [lateral(source) for source, lateral in zip(sources, self.pyramid_lateral)]
+
+        for down in self.downsample:
+            padding = [0, 0, 0, 0]
+            if (features[-1].shape[2] > 2):
+                padding[0:2] = [0, 1]
+            if (features[-1].shape[3] > 2):
+                padding[2:4] = [0, 1]
+            first = down[0](F.pad(features[-1], padding))
+            second = down[1](features[-1])
+            features.append(torch.cat([first, second], dim=1))
+
+        output = [features[-1]]
+        for i in reversed(range(0, len(features) - 1)):
+            up = F.interpolate(output[-1], size=features[i].size()[2:], mode=self.interpolation_mode)
+            output.append(self.up_conv[i](up) + features[i])
+
+        output = list(reversed(output))
+
+        return output, output[-1]
 
     def get_out_channels(self):
         return [self.pyramid_channels] * self.pyramid_layers
@@ -153,13 +235,6 @@ class ThinnedUshapeModule(nn.Module):
                                               out_channels,
                                               kernel_size=1,
                                               activation_params=activation))
-
-        initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
-        init_layer = functools.partial(_init_layer, initializer_=initializer_)
-
-        self.down_layers.apply(init_layer)
-        self.up_layers.apply(init_layer)
-        self.smooth_layers.apply(init_layer)
 
     def forward(self, x):
         down_path = [x]
@@ -247,8 +322,7 @@ class MultilevelFeaturePyramid(Features):
         update_existing(tum, {
             'interpolation_mode': interpolation_mode,
             'use_depthwise': use_depthwise,
-            'activation': activation,
-            'initializer': initializer
+            'activation': activation
         })
         self.tum_out_channels = tum['out_channels']
 
@@ -271,13 +345,10 @@ class MultilevelFeaturePyramid(Features):
 
         self.sfam = ScalewiseFeatureAggregationModule(**sfam)
 
-        initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
-        init_layer = functools.partial(_init_layer, initializer_=initializer_)
-
-        self.base_reducers.apply(init_layer)
-        self.tums.apply(init_layer)
-        self.reducers.apply(init_layer)
-        self.sfam.apply(init_layer)
+        self.base_reducers.apply(self.init_layer)
+        self.tums.apply(self.init_layer)
+        self.reducers.apply(self.init_layer)
+        self.sfam.apply(self.init_layer)
 
     def forward(self, x):
         sources, _ = super(MultilevelFeaturePyramid, self).forward(x)
