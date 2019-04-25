@@ -31,7 +31,14 @@ def init(device,
         del state['model']
     elif 'model' in model_params['detector']:
         logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
-        detector = torch.load(model_params['detector']['model'])
+        loaded = torch.load(model_params['detector']['model'])
+
+        if type(loaded) is dict and 'model' in loaded:
+            detector = loaded['model']
+            del loaded['model']
+            del loaded
+        else:
+            detector = loaded
     else:
         base = base_builder.create_base(model_params)
         detector = filter_kwargs(detector_builder.build)(base,
