@@ -177,9 +177,9 @@ class DepthwiseFeaturePyramid(Features):
 
         for down in self.downsample:
             padding = [0, 0, 0, 0]
-            if (features[-1].shape[2] > 2):
-                padding[0:2] = [0, 1]
             if (features[-1].shape[3] > 2):
+                padding[0:2] = [0, 1]
+            if (features[-1].shape[2] > 2):
                 padding[2:4] = [0, 1]
             first = down[0](F.pad(features[-1], padding))
             second = down[1](features[-1])
