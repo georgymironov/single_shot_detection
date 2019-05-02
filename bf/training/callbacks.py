@@ -3,7 +3,6 @@ import os
 import shutil
 
 import pandas as pd
-from tensorboardX import SummaryWriter
 import torch
 
 from bf.training import schedulers
@@ -38,6 +37,8 @@ def logger(event_emitter, log_dir):
             f.write(log.to_csv())
 
 def tensorboard(event_emitter, log_dir):
+    from torch.utils.tensorboard import SummaryWriter
+
     writer = SummaryWriter(log_dir)
 
     @event_emitter.on('step_end')
@@ -68,8 +69,8 @@ def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metr
                 event_emitter.emit('scheduler_step')
 
         if run_scheduler_each_step:
-            event_name = 'step_start'
+            event_name = 'step_end'
         else:
-            event_name = 'phase_start'
+            event_name = 'phase_end'
 
     event_emitter.add_event_handler(event_name, scheduler_step)
