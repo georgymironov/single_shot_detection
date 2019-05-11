@@ -10,7 +10,7 @@ import torch.nn as nn
 from bf.utils import torch_utils
 
 
-def _get_path(modules, indexes):
+def _get_paths(modules, indexes):
     indexes = sorted(indexes)
     cumsum = 0
     i = 0
@@ -51,6 +51,16 @@ class Critetion(object):
                     processed.add(name)
         return weights
 
+    def _get_path_by_weights(self, weights, num):
+        weights = self._share_connected(weights)
+        modules = {name: self.filtered_modules[name] for name in weights.keys()}
+
+        weights = torch.cat(list(weights.values()))
+        _, indexes = torch.topk(weights, num, largest=False)
+        indexes = [x.item() for x in indexes]
+
+        return _get_paths(modules, indexes)
+
     def get_path(self, num=1):
         raise NotImplementedError
 
@@ -58,7 +68,7 @@ class RandomSampling(Critetion):
     def get_path(self, num=1):
         total_channels = sum(x.out_channels for x in self.filtered_modules.values())
         indexes = [random.randint(0, total_channels) for _ in range(num)]
-        yield from _get_path(self.filtered_modules, indexes)
+        return _get_paths(self.filtered_modules, indexes)
 
 class MinL1Norm(Critetion):
     def get_path(self, num=1):
@@ -68,15 +78,18 @@ class MinL1Norm(Critetion):
                 else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
             for name, module in self.filtered_modules.items()
         }
+        return self._get_path_by_weights(norm, num)
 
-        norm = self._share_connected(norm)
-        modules = {name: self.filtered_modules[name] for name in norm.keys()}
+class MinL2Norm(Critetion):
+    def get_path(self, num=1):
+        norm = {
+            name: module.weight.pow(2).sum(dim=(1, 2, 3)).sqrt().unsqueeze(1)
+                if module.out_channels > num
+                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
+            for name, module in self.filtered_modules.items()
+        }
+        return self._get_path_by_weights(norm, num)
 
-        norm = torch.cat(list(norm.values()))
-        _, indexes = torch.topk(norm, num, largest=False)
-        indexes = [x.item() for x in indexes]
-
-        yield from _get_path(modules, indexes)
 
 def _to_torch_path(onnx_node):
     return '.'.join(re.findall(r'\[(.*?)\]', onnx_node.scopeName()))
