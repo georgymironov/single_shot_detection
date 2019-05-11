@@ -10,6 +10,19 @@ import torch.nn as nn
 from bf.utils import torch_utils
 
 
+def _get_path(modules, indexes):
+    indexes = sorted(indexes)
+    cumsum = 0
+    i = 0
+    for name, module in modules.items():
+        while cumsum + module.out_channels > indexes[i]:
+            yield name, indexes[i] - cumsum
+            i += 1
+            if i == len(indexes):
+                return
+        cumsum += module.out_channels
+
+
 class Critetion(object):
     def __init__(self, modules, connected=None, include_paths=None):
         self.modules = {name: module for name, module in modules.items() if isinstance(module, nn.Conv2d)}
@@ -25,17 +38,18 @@ class Critetion(object):
         name, _ = item
         return any(name.startswith(p) for p in self.include_paths)
 
-    def _get_path(self, indexes, num=1):
-        indexes = sorted(indexes)
-        cumsum = 0
-        i = 0
-        for name, module in self.filtered_modules.items():
-            while cumsum + module.out_channels > indexes[i]:
-                yield name, indexes[i] - cumsum
-                i += 1
-                if num == i:
-                    return
-            cumsum += module.out_channels
+    def _share_connected(self, weights):
+        weights = {
+            name: torch.max(torch.cat([weights[x] for x in self.connected[name]], dim=1), dim=1)[0]
+            for name in weights.keys()
+        }
+        processed = set()
+        for name in list(weights.keys()):
+            for connected in self.connected[name]:
+                if connected != name and connected not in processed and connected in weights:
+                    del weights[connected]
+                    processed.add(name)
+        return weights
 
     def get_path(self, num=1):
         raise NotImplementedError
@@ -44,7 +58,7 @@ class RandomSampling(Critetion):
     def get_path(self, num=1):
         total_channels = sum(x.out_channels for x in self.filtered_modules.values())
         indexes = [random.randint(0, total_channels) for _ in range(num)]
-        yield from self._get_path(indexes, num)
+        yield from _get_path(self.filtered_modules, indexes)
 
 class MinL1Norm(Critetion):
     def get_path(self, num=1):
@@ -52,19 +66,17 @@ class MinL1Norm(Critetion):
             name: module.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1)
                 if module.out_channels > num
                 else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
-            for name, module in self.modules.items()
+            for name, module in self.filtered_modules.items()
         }
-        norm = {
-            name: torch.max(torch.cat([norm[x] for x in self.connected[name]], dim=1), dim=1)[0]
-            for name in norm.keys()
-        }
-        norm = dict(filter(self._include, norm.items()))
-        norm = torch.cat([x for x in norm.values()])
 
+        norm = self._share_connected(norm)
+        modules = {name: self.filtered_modules[name] for name in norm.keys()}
+
+        norm = torch.cat(list(norm.values()))
         _, indexes = torch.topk(norm, num, largest=False)
         indexes = [x.item() for x in indexes]
 
-        yield from self._get_path(indexes, num)
+        yield from _get_path(modules, indexes)
 
 def _to_torch_path(onnx_node):
     return '.'.join(re.findall(r'\[(.*?)\]', onnx_node.scopeName()))
@@ -126,7 +138,7 @@ class Pruner(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
     _affected_out_node_types = ['onnx::Conv']
 
-    def __init__(self, model, include_paths=None, criterion='RandomSampling', num=1):
+    def __init__(self, model, include_paths=None, criterion='MinL1Norm', num=1):
         self.num = num
         self.model = model
         self.modules = dict(torch_utils.get_leaf_modules(model))
@@ -181,6 +193,7 @@ class Pruner(object):
 
         if memo is None:
             memo = set()
+
         node = self.nodes[unique]
         affected = _to_torch_path(node), type_
 
@@ -220,11 +233,9 @@ class Pruner(object):
             else:
                 yield from _get_affected_out_nodes()
 
-    def prune(self, path=None, index=None):
-        if path is None and index is None:
+    def prune(self, paths=None):
+        if not paths:
             paths = self.criterion.get_path(self.num)
-        elif path is None or index is None:
-            raise ValueError('Both "path" and "index" should be provided')
 
         logging.info('Pruning:')
 

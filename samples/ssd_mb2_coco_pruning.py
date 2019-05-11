@@ -106,7 +106,7 @@ train = {
     },
 
     'pruner': {
-        'include_paths': ['features', 'extras'],
+        'include_paths': ['predictor.features', 'predictor.extras'],
         'criterion': 'MinL1Norm',
     }
 }
