@@ -17,6 +17,9 @@ class TraceInspector(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
     _affected_out_node_types = ['onnx::Conv']
 
+    activation_types = ['onnx::Clip', 'onnx::Elu', 'onnx::LeakyRelu', 'onnx::PRelu', 'onnx::Relu', 'onnx::Selu',
+                        'onnx::Sigmoid', 'onnx::Tanh']
+
     def __init__(self, model):
         self.model = model
         self.trace = torch_utils.get_onnx_trace(model)  # writing to self to prevent deallocation
@@ -54,15 +57,35 @@ class TraceInspector(object):
 
         self.node_paths = {_to_torch_path(x): x.output().unique()
                            for x in graph.nodes()
-                           if x.kind() == 'onnx::Conv' and x.output().unique() not in self.ignore}
+                           if len(list(x.outputs())) == 1 and x.output().unique() not in self.ignore}
 
-        self.affected = {k: list(self.get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
+        self.affected = {k: list(self._get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
 
     @property
     def connected(self):
         return {k: [x[0] for x in v if x[1] == 'out'] for k, v in self.affected.items()}
 
-    def get_affected_nodes(self, unique, type_='out', memo=None):
+    def get_descendent_of_type(self, path, types, stop_on=None):
+        stop_on = stop_on or []
+        unique = self.node_paths[path]
+
+        for output_node in self.output_nodes[unique]:
+            for output in output_node.outputs():
+                yield from self._get_descendent_of_type(output.unique(), types, stop_on)
+
+    def _get_descendent_of_type(self, unique, types, stop_on=None):
+        node = self.nodes[unique]
+
+        if node.kind() in stop_on:
+            return
+        if node.kind() in types:
+            yield _to_torch_path(node)
+        else:
+            for output_node in self.output_nodes[unique]:
+                for output in output_node.outputs():
+                    yield from self._get_descendent_of_type(output.unique(), types, stop_on)
+
+    def _get_affected_nodes(self, unique, type_='out', memo=None):
         if unique in self.ignore:
             return
 
@@ -78,12 +101,12 @@ class TraceInspector(object):
         def _get_affected_in_nodes():
             for output_node in self.output_nodes[unique]:
                 for output in output_node.outputs():
-                    yield from self.get_affected_nodes(output.unique(), 'in', memo)
+                    yield from self._get_affected_nodes(output.unique(), 'in', memo)
 
         def _get_affected_out_nodes():
             for inp in node.inputs():
                 if inp.unique() in self.nodes:
-                    yield from self.get_affected_nodes(inp.unique(), 'out', memo)
+                    yield from self._get_affected_nodes(inp.unique(), 'out', memo)
 
         if _is_depthwise_conv_onnx(node):
             yield _to_torch_path(node), 'out'

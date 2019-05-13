@@ -1,3 +1,4 @@
+import logging
 import math
 import random
 
@@ -52,6 +53,9 @@ class Critetion(object):
         weights = self._share_connected(weights)
         modules = {name: self.filtered_modules[name] for name in weights.keys()}
 
+        for name, weight in weights.items():
+            assert self.filtered_modules[name].weight.size(0) == weight.size(0)
+
         weights = torch.cat(list(weights.values()))
         _, indexes = torch.topk(weights, num, largest=False)
         indexes = [x.item() for x in indexes]
@@ -86,3 +90,50 @@ class MinL2Norm(Critetion):
             for name, module in self.filtered_modules.items()
         }
         return self._get_path_by_weights(norm, num)
+
+class _hook:
+    def __init__(self, mean_activation):
+        self.num_steps = 0
+        self.mean_activation = mean_activation
+
+    def __call__(self, module, input, output):
+        with torch.no_grad():
+            self.mean_activation *= self.num_steps / (self.num_steps + 1)
+            self.mean_activation += output.mean(dim=(0, 2, 3)) / (self.num_steps + 1)
+        self.num_steps += 1
+
+class MinActivation(Critetion):
+    def __init__(self, *args, **kwargs):
+        super(MinActivation, self).__init__(*args, **kwargs)
+
+        self.activation_map = {}
+        for name in self.filtered_modules.keys():
+            activations = set(self.trace_inspector.get_descendent_of_type(name,
+                                                                          types=self.trace_inspector.activation_types,
+                                                                          stop_on=['onnx::Conv']))
+            assert len(activations) <= 1
+
+            if not activations:
+                logging.warn(f'WRN: Layer "{name}" does not have an activation')
+            else:
+                self.activation_map[activations.pop()] = name
+
+        for name, module in self.model.named_modules():
+            if name in self.activation_map:
+                conv = self.modules[self.activation_map[name]]
+                conv.register_buffer('mean_activation', torch.zeros((conv.out_channels,), dtype=conv.weight.dtype, device=conv.weight.device))
+                module.register_forward_hook(_hook(conv.mean_activation))
+
+    def get_path(self, num=1):
+        activation = {
+            name: module.mean_activation.unsqueeze(1)
+                if module.out_channels > num
+                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
+            for name, module in self.filtered_modules.items()
+            if hasattr(module, 'mean_activation') and module.mean_activation.sum().ne(0)
+        }
+
+        if not activation:
+            return []
+
+        return self._get_path_by_weights(activation, num)

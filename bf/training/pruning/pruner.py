@@ -23,6 +23,7 @@ def _remove_depthwise_conv_channel(module, indexes):
 
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
+    _mask_parameter(module.mean_activation, mask)
 
     module.out_channels = module.in_channels = module.groups = module.out_channels - len(indexes)
 
@@ -32,6 +33,7 @@ def _remove_conv_out_channel(module, indexes):
 
     _mask_parameter(module.weight, mask)
     _mask_parameter(module.bias, mask)
+    _mask_parameter(module.mean_activation, mask)
 
     module.out_channels = module.out_channels - len(indexes)
 
@@ -71,6 +73,10 @@ class Pruner(object):
             paths = self.criterion.get_path(self.num)
 
         logging.info('Pruning:')
+
+        if not paths:
+            logging.info('Nothing!')
+            return
 
         grouped_paths = defaultdict(set)
         for path, index in paths:
