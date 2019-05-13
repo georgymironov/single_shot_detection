@@ -6,7 +6,7 @@ import torch
 import bf
 from bf.builders import train_builder, data_builder
 from bf.training import callbacks, helpers
-from bf.training.pruner import Pruner
+from bf.training.pruning.pruner import Pruner
 from bf.utils.video_viewer import VideoViewer
 from bf.utils import mo_exporter, onnx_exporter
 
