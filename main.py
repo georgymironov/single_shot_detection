@@ -84,8 +84,8 @@ if __name__ == '__main__':
 
         if not args.debug:
             callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
-            callbacks.logger(trainer, checkpoint_dir)
 
+        callbacks.logger(trainer, helpers.get_csv_log_file(args, checkpoint_dir))
         writer = callbacks.tensorboard(trainer, checkpoint_dir) if args.tensorboard else None
 
         if 'scheduler' in cfg.train:

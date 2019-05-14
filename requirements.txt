@@ -3,8 +3,6 @@ jpeg4py
 lxml
 networkx
 numpy
-onnx
-pandas
 torch>=1.1.0
 torchvision
 tqdm

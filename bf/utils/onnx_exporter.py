@@ -2,7 +2,6 @@ from collections import defaultdict
 import logging
 import tempfile
 
-import onnx
 import torch
 
 
@@ -80,6 +79,11 @@ def _merge_nodes(graph):
         graph.node.remove(node)
 
 def export(model, input_size, filename):
+    try:
+        import onnx
+    except ImportError:
+        raise ImportError('Exporting to ONNX requires onnx package installed.')
+
     model.eval()
     device = next(model.parameters()).device
     data = torch.rand((1, 3, input_size[1], input_size[0]), dtype=torch.float32, device=device)

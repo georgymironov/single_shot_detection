@@ -7,5 +7,3 @@
 ### Training
 - Taylor expansion criterion for pruning (https://arxiv.org/pdf/1611.06440.pdf)
 
-### General
-- Make some 3rd party deps optional to install

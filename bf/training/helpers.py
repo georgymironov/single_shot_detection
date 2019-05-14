@@ -79,6 +79,12 @@ def get_default_argparser():
     parser.add_argument('--tensorboard', action='store_true')
     return parser
 
+def get_csv_log_file(args, log_dir):
+    if args.debug:
+        return os.devnull
+    else:
+        return os.path.join(log_dir, 'log.csv')
+
 def init_logger(args):
     logging.basicConfig(level=logging.INFO, format='%(message)s')
 

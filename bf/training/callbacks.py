@@ -1,8 +1,9 @@
+from collections import OrderedDict
+import csv
 import logging
 import os
 import shutil
 
-import pandas as pd
 import torch
 
 from bf.training import schedulers
@@ -21,20 +22,31 @@ def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
         if (global_state['epoch'] + 1) % save_every == 0:
             torch.save(global_state, os.path.join(checkpoint_dir, f'ckpt-{global_state["global_step"]}.pt'))
 
-def logger(event_emitter, log_dir):
-    csv_log_path = os.path.join(log_dir, 'log.txt')
+def logger(event_emitter, csv_log_path):
+    log = []
+    keys = OrderedDict({'global_step': None})
+
     if os.path.exists(csv_log_path):
-        log = pd.read_csv(csv_log_path, index_col=['global_step'])
-    else:
-        log = pd.DataFrame()
-        log.index.name = 'global_step'
+        with open(csv_log_path, 'r') as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            if fieldnames:
+                keys.update(OrderedDict.fromkeys(fieldnames))
+                log = list(reader)
 
     @event_emitter.on('epoch_end')
     def log_fn(global_state=None, epoch_state=None, **kwargs):
-        nonlocal log
-        log = log.append(pd.Series(epoch_state, name=global_state['global_step']))
+        nonlocal log, keys
+
+        row = OrderedDict({'global_step': global_state['global_step']})
+        row.update(epoch_state)
+        log.append(row)
+        keys.update(OrderedDict.fromkeys(epoch_state.keys()))
+
         with open(csv_log_path, 'w') as f:
-            f.write(log.to_csv())
+            writer = csv.DictWriter(f, keys.keys())
+            writer.writeheader()
+            writer.writerows(log)
 
 def tensorboard(event_emitter, log_dir):
     from torch.utils.tensorboard import SummaryWriter
