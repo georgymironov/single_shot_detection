@@ -43,9 +43,12 @@ def init_checkpoint(args):
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
         state = torch.load(checkpoint)
-        if 'model' in state and 'model_dict' in state:
-            del state['model_dict']
-            torch.cuda.empty_cache()
+        if 'model' in state:
+            if args.load_weights:
+                del state['model']
+            elif 'model_dict' in state:
+                del state['model_dict']
+        torch.cuda.empty_cache()
     else:
         state = {}
 
@@ -77,6 +80,7 @@ def get_default_argparser():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--new_checkpoint', action='store_true')
     parser.add_argument('--tensorboard', action='store_true')
+    parser.add_argument('--load_weights', action='store_true', help='Restore from weigths rather than full model when loading from checkpoint')
     return parser
 
 def get_csv_log_file(args, log_dir):
