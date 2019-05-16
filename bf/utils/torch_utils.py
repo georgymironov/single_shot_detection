@@ -52,6 +52,7 @@ def get_leaf_modules(module, memo=None, prefix=''):
                     yield m
 
 def get_onnx_trace(model, input_=None):
+    model.eval()
     with onnx_exporter.for_export():
         if input_ is None:
             input_ = torch.ones((2, 3, 224, 224), dtype=torch.float)

@@ -26,7 +26,7 @@ def build(base,
     source_layers = features['out_layers']
 
     Features = get_ctor(_features, features['name'])
-    features = Features(base, use_depthwise=use_depthwise, **features).eval()
+    features = Features(base, use_depthwise=use_depthwise, **features)
 
     num_scales = features.num_outputs + len(extra_layers)
     source_out_channels = features.get_out_channels()

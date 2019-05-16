@@ -42,6 +42,7 @@ class Features(nn.Module):
         return sources, x
 
     def get_out_channels(self):
+        self.eval()
         dummy = torch.ones((1, 3, 300, 300), dtype=torch.float)
         sources, _ = get_multiple_outputs(self.base, dummy, self.out_layers)
         return [x.size(1) for x in sources]
