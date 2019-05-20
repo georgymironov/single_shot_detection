@@ -1,11 +1,8 @@
 import functools
-import random
-
-import torch
 
 import bf
 from bf.builders import train_builder, data_builder
-from bf.training import callbacks, helpers
+from bf.training import callbacks, env, helpers
 from bf.training.pruning.pruner import Pruner
 from bf.utils.video_viewer import VideoViewer
 from bf.utils import mo_exporter, onnx_exporter
@@ -15,20 +12,15 @@ from detection.metrics.mean_average_precision import mean_average_precision
 from detection.tools import mo_add_output
 
 
-if __name__ == '__main__':
-    parser = helpers.get_default_argparser()
-    args = parser.parse_args()
+def main(args):
+    env.init_logger(args)
 
-    helpers.init_logger(args)
     state, checkpoint_dir = helpers.init_checkpoint(args)
+    env.init_file_logger(args, checkpoint_dir)
     cfg = helpers.load_config(args)
-    cfg.update({'num_gpus': torch.cuda.device_count()})
 
-    random.seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
-
-    use_cuda = cfg.use_gpu and torch.cuda.is_available()
-    device = 'cuda:0' if use_cuda else 'cpu'
+    env.init_random_state(args, cfg)
+    device, use_cuda = env.set_device(args, cfg)
 
     augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, 'box')
 
@@ -39,7 +31,8 @@ if __name__ == '__main__':
                                                               preprocess,
                                                               shuffle=cfg.shuffle,
                                                               num_workers=cfg.num_workers,
-                                                              pin_memory=use_cuda)
+                                                              pin_memory=use_cuda,
+                                                              distributed=args.distributed)
 
     detector, init_epoch_state_fn, step_fn = init_detection(device=device,
                                                             model_params=cfg.model,
@@ -49,7 +42,8 @@ if __name__ == '__main__':
                                                             loss_params=cfg.loss,
                                                             target_assigner_params=cfg.target_assigner,
                                                             state=state,
-                                                            preprocess=preprocess)
+                                                            preprocess=preprocess,
+                                                            distributed=args.distributed)
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
@@ -62,7 +56,9 @@ if __name__ == '__main__':
     if 'embed' in args.phases:
         import IPython
         IPython.embed()
-    elif 'train' in args.phases:
+        return
+
+    if 'train' in args.phases:
         epochs = cfg.train['epochs']
         total_train_steps = len(dataloader['train']) // cfg.train.get('accumulation_steps', 1)
 
@@ -93,6 +89,7 @@ if __name__ == '__main__':
 
             if writer:
                 @trainer.on('scheduler_step')
+                @env.master_only
                 def log_lr(*args, **kwargs):
                     for i, x in enumerate(optimizer.param_groups):
                         writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], trainer.global_step)
@@ -112,10 +109,22 @@ if __name__ == '__main__':
     elif 'eval' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
         evaluator.run(dataloader['eval'])
-    elif 'test' in args.phases:
+
+    if 'test' in args.phases:
         viewer = VideoViewer(args.video, detector)
         viewer.run()
-    elif 'export' in args.phases:
+
+    if 'export' in args.phases:
         onnx_exporter.export(detector.model, cfg.input_size, 'model.onnx')
-    elif 'export-mo' in args.phases:
+
+    if 'export-mo' in args.phases:
         mo_exporter.export(detector.model, cfg, 'model', folder='exported', postprocess=mo_add_output.add_output)
+
+
+if __name__ == '__main__':
+    parser = helpers.get_default_argparser()
+    parser.add_argument('--phases', nargs='+', default=['train', 'eval'], choices=['train', 'eval', 'test', 'export', 'export-mo', 'embed'],
+                        help='One or multiple runtime phases')
+    args = parser.parse_args()
+
+    helpers.launch(args, main)

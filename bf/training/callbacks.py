@@ -6,9 +6,10 @@ import shutil
 
 import torch
 
-from bf.training import schedulers
+from bf.training import env, schedulers
 
 
+@env.master_only
 def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
     os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
     new_config_path = os.path.join(checkpoint_dir, 'config.py')
@@ -22,6 +23,7 @@ def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
         if (global_state['epoch'] + 1) % save_every == 0:
             torch.save(global_state, os.path.join(checkpoint_dir, f'ckpt-{global_state["global_step"]}.pt'))
 
+@env.master_only
 def logger(event_emitter, csv_log_path):
     log = []
     keys = OrderedDict({'global_step': None})
@@ -48,6 +50,7 @@ def logger(event_emitter, csv_log_path):
             writer.writeheader()
             writer.writerows(log)
 
+@env.master_only
 def tensorboard(event_emitter, log_dir):
     from torch.utils.tensorboard import SummaryWriter
 

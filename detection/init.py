@@ -2,6 +2,8 @@ import functools
 import logging
 
 import torch
+from torch.nn import SyncBatchNorm
+from torch.nn.parallel.distributed import DistributedDataParallel
 
 from bf.builders import base_builder
 from bf.utils.misc_utils import filter_kwargs
@@ -23,7 +25,8 @@ def init(device,
          sampler_params,
          target_assigner_params,
          state={},
-         preprocess=None):
+         preprocess=None,
+         distributed=False):
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
@@ -57,6 +60,11 @@ def init(device,
             del state['model_dict']
 
     torch.cuda.empty_cache()
+
+    if distributed:
+        detector = SyncBatchNorm.convert_sync_batchnorm(detector)
+        detector.predictor = DistributedDataParallel(detector.predictor, device_ids=[device], output_device=device)
+
     logging.info(detector)
 
     sampler = getattr(detection.sampler, sampler_params['name'])

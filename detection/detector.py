@@ -92,12 +92,7 @@ class Predictor(nn.Module):
 class Detector(nn.Module):
     def __init__(self, *args, num_classes, priors):
         super(Detector, self).__init__()
-
         self.predictor = Predictor(*args)
-
-        if torch.cuda.device_count() > 1:
-            self.predictor = nn.DataParallel(self.predictor)
-
         self.num_classes = num_classes
         self.priors = priors
 

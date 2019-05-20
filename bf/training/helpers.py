@@ -2,13 +2,16 @@ import argparse
 import datetime
 import importlib
 import logging
+import multiprocessing as mp
 import os
 import re
 import sys
 
-from bf.utils.config_wrapper import ConfigWrapper
+from copy import copy
 
 import torch
+
+from bf.utils.config_wrapper import ConfigWrapper
 
 
 def _get_checkpoint(checkpoint_path):
@@ -59,28 +62,36 @@ def init_checkpoint(args):
 
     logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
 
-    if not args.debug and 'train' in args.phases:
-        init_file_logger(checkpoint_dir)
-
     return state, checkpoint_dir
-
-def init_file_logger(log_dir):
-    os.path.exists(log_dir) or os.makedirs(log_dir)
-    log_path = os.path.join(log_dir, 'train.log')
-    file_handler = logging.FileHandler(log_path)
-    logging.getLogger().addHandler(file_handler)
 
 def get_default_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='./config.py')
-    parser.add_argument('--save_dir', type=str, default='./experiments')
-    parser.add_argument('--checkpoint', type=str)
-    parser.add_argument('--phases', nargs='+', default=['train', 'eval'])
-    parser.add_argument('--video', type=str)
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--new_checkpoint', action='store_true')
-    parser.add_argument('--tensorboard', action='store_true')
-    parser.add_argument('--load_weights', action='store_true', help='Restore from weigths rather than full model when loading from checkpoint')
+    parser.add_argument('--config', default='./config.py',
+                        help='Path to a config file')
+    parser.add_argument('--save-dir', type=str, default='./experiments',
+                        help='Folder where checkpoints are going to be saved')
+    parser.add_argument('--checkpoint', type=str,
+                        help='Path to restore checkpoint from. Overrides `save_dir`')
+    parser.add_argument('--video', type=str,
+                        help='Video or a folder (which will be searched recursively) for `test` phase')
+    parser.add_argument('--debug', default=False, action='store_true',
+                        help='Debug mode. Disables saving checkpoints and logs')
+    parser.add_argument('--new-checkpoint', default=False, action='store_true',
+                        help='Force checkpoint to be stores to `save_dir`')
+    parser.add_argument('--tensorboard', default=False, action='store_true',
+                        help='Log to tensorboard')
+    parser.add_argument('--load-weights', default=False, action='store_true',
+                        help='Restore from weigths rather than full model when loading from checkpoint')
+
+    distributed = parser.add_argument_group('distributed')
+    distributed.add_argument('--distributed', default=False, action='store_true',
+                             help='Enable distributed training (only [single node - multi gpu] supported right now')
+    distributed.add_argument('--nproc', type=int, default=torch.cuda.device_count(),
+                             help='Number of jobs for distributed training (defaults to number of GPUs)')
+    distributed.add_argument('--rank', type=int, default=0,
+                             help='Rank of the current process')
+    distributed.add_argument('--master-port', type=int, default=44444,
+                             help='Free local port for worker communication')
     return parser
 
 def get_csv_log_file(args, log_dir):
@@ -89,8 +100,23 @@ def get_csv_log_file(args, log_dir):
     else:
         return os.path.join(log_dir, 'log.csv')
 
-def init_logger(args):
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+def launch(args, main):
+    if args.distributed:
+        assert 'train' in args.phases
 
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
+        mp.set_start_method('spawn')
+        processes = []
+
+        for rank in range(args.nproc):
+            _args = copy(args)
+            _args.rank = rank
+
+            process = mp.Process(target=main, args=(_args,))
+            process.start()
+            processes.append(process)
+
+        for process in processes:
+            process.join()
+
+    else:
+        main(args)
