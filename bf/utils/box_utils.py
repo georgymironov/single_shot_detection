@@ -85,7 +85,7 @@ def jaccard(a, b, cartesian=True):
     Returns:
         jaccard: torch.tensor(:shape [BoxesA, BoxesB])
     """
-    intersection_area = area(intersection(a, b, cartesian))
+    intersection_area = area(intersection(a, b, cartesian=cartesian))
     area_a = area(a)
     area_b = area(b)
 
@@ -95,29 +95,8 @@ def jaccard(a, b, cartesian=True):
 
     return intersection_area / (area_a + area_b - intersection_area)
 
-@to_torch
-def nms(boxes, scores, overlap_threshold, max_per_class=None):
-    """
-    Note: Boxes should have minmax format
-    Args:
-        boxes: torch.tensor(:shape [Boxes, 4])
-        scores: torch.tensor(:shape [Boxes])
-        overlap_threshold: float
-        max_per_class: int
-    Returns:
-        picked: tuple(
-                    tuple(torch.tensor(:shape [Picked, 4]) -> boxes_picked,
-                          torch.tensor(:shape [Picked]) -> scores_picked)
-                    torch.tensor(:shape [Picked]) -> indexes_picked
-                )
-    """
-    if max_per_class is not None and max_per_class < scores.size(0):
-        scores, indexes = scores.topk(max_per_class, sorted=True, largest=True)
-        boxes = boxes[indexes]
-        indexes = torch.arange(boxes.size(0), dtype=torch.long)
-    else:
-        _, indexes = scores.sort(descending=True)
-
+def _greedy_nms(boxes, scores, overlap_threshold):
+    _, indexes = scores.sort(descending=True)
     box_area = area(boxes)
     picked = []
 
@@ -132,3 +111,53 @@ def nms(boxes, scores, overlap_threshold, max_per_class=None):
 
     picked = torch.tensor(picked, dtype=torch.long)
     return (boxes[picked], scores[picked]), picked
+
+def _soft_nms(boxes, scores, score_threshold, sigma=0.5):
+    scores_copy = scores.clone()
+    mask = scores > score_threshold
+    box_area = area(boxes)
+    picked = []
+
+    while mask.nonzero().sum():
+        idx = scores_copy.argmax()
+        scores_copy[idx] = 0
+        picked.append(idx)
+
+        mask = scores_copy > score_threshold
+
+        intersection_area = area(intersection(boxes[idx].unsqueeze(0), boxes[mask]).squeeze_(0))
+        iou = intersection_area / (box_area[idx] + box_area[mask] - intersection_area)
+        scores_copy[mask] = scores_copy[mask] * iou.pow(2).div_(sigma).neg_().exp_()
+
+    picked = torch.tensor(picked, dtype=torch.long)
+    return (boxes[picked], scores[picked]), picked
+
+@to_torch
+def nms(boxes, scores, overlap_threshold, score_threshold, max_per_class=None, soft=False, sigma=0.5):
+    """
+    Note: Boxes should have minmax format
+    Args:
+        boxes:              torch.tensor(:shape [Boxes, 4])
+        scores:             torch.tensor(:shape [Boxes])
+        overlap_threshold:  float
+        score_threshold:    float
+        max_per_class:      int
+        soft:               bool
+        sigma:              float
+    Returns:
+        picked: tuple(
+                    tuple(
+                        torch.tensor(:shape [Picked, 4]) -> boxes_picked,
+                        torch.tensor(:shape [Picked]) -> scores_picked
+                    )
+                    torch.tensor(:shape [Picked]) -> indexes_picked
+                )
+    """
+    if max_per_class is not None and max_per_class < scores.size(0):
+        scores, indexes = scores.topk(max_per_class, sorted=False, largest=True)
+        boxes = boxes[indexes]
+
+    if soft:
+        return _soft_nms(boxes, scores, score_threshold, sigma)
+    else:
+        return _greedy_nms(boxes, scores, overlap_threshold)

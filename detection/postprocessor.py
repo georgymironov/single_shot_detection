@@ -10,7 +10,7 @@ class Postprocessor(object):
     def __init__(self, box_coder, score_threshold, nms, score_converter='SOFTMAX', max_total=None):
         self.box_coder = box_coder
         self.score_threshold = score_threshold
-        self.nms = functools.partial(box_utils.nms, **nms)
+        self.nms = functools.partial(box_utils.nms, score_threshold=score_threshold, **nms)
         self.max_total = max_total
         self.score_converter = score_converter
 
@@ -40,7 +40,7 @@ class Postprocessor(object):
         b_scores = self.score_converter_fn(b_scores)
         num_classes = b_scores.size(-1)
 
-        if self.score_converter != 'SIGMOID':
+        if self.score_converter == 'SOFTMAX':
             num_classes = num_classes - 1
             b_scores = b_scores[..., 1:]
 
