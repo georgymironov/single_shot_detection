@@ -32,12 +32,10 @@ class Coco(DetectionDataset):
                  year=2017,
                  val=False,
                  with_crowd=True,
-                 resize=None,
                  augment=None,
                  preprocess=None):
         super(Coco, self).__init__()
 
-        self.resize = resize
         self.augment = augment
         self.preprocess = preprocess
 

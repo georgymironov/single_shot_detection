@@ -23,8 +23,7 @@ def init(device,
          sampler_params,
          target_assigner_params,
          state={},
-         preprocess=None,
-         resize=None):
+         preprocess=None):
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
@@ -69,7 +68,7 @@ def init(device,
     postprocessor = Postprocessor(box_coder, **postprocess_params)
     target_assigner = TargetAssigner(box_coder, **target_assigner_params)
 
-    detector_wrapper = DetectorWrapper(detector, postprocessor, preprocess, resize)
+    detector_wrapper = DetectorWrapper(detector, preprocess, postprocessor)
 
     def init_epoch_state():
         return {

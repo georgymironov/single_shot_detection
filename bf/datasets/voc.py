@@ -20,10 +20,8 @@ class Voc(DetectionDataset):
     def __init__(self,
                  root,
                  image_sets,
-                 resize=None,
                  augment=None,
                  preprocess=None):
-        self.resize = resize
         self.augment = augment
         self.preprocess = preprocess
 

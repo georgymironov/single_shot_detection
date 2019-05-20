@@ -1,2 +1,2 @@
-from . import box
-from .common import *
+from .box import box as box_fn
+from .img import *

@@ -5,69 +5,18 @@ import cv2
 import numpy as np
 import torch
 
-import bf.preprocessing
-from . import functional
+from bf.preprocessing import functional
+
+from .common import DynamicTransform, RandomDynamicTransform, RandomTransform, Transform, TransformContainer
 
 
-class Transform(object):
+class Compose(TransformContainer):
     def __call__(self, sample):
-        return self.apply(sample)
-
-    def apply(self, sample):
-        raise NotImplementedError
-
-class DynamicTransform(object):
-    def __call__(self, sample):
-        transform_type = bf.preprocessing.transform_type
-        dummy_target = False
-
-        if transform_type == 'box':
-            self.target_functional = functional.box
-        elif transform_type == 'no_target':
-            if not isinstance(sample, tuple):
-                sample = sample, None
-                dummy_target = True
-            self.target_functional = bf.preprocessing.no_target
-        else:
-            raise ValueError(f'Unknown transform_type: {transform_type}')
-
-        result = self.apply(sample)
-        if dummy_target:
-            result = result[0]
-
-        return result
-
-    @property
-    def _no_target(self):
-        return self.target_functional is bf.preprocessing.no_target
-
-    def apply(self, sample):
-        raise NotImplementedError
-
-class RandomDynamicTransform(DynamicTransform):
-    def __init__(self, p=.5):
-        super(RandomDynamicTransform, self).__init__()
-        self.p = p
-
-    def __call__(self, sample):
-        if random.random() < self.p:
-            return super(RandomDynamicTransform, self).__call__(sample)
+        for transform in self.transforms:
+            sample = transform(sample)
         return sample
 
-class RandomTransform(Transform):
-    def __init__(self, p=.5):
-        super(RandomTransform, self).__init__()
-        self.p = p
-
-    def __call__(self, sample):
-        if random.random() < self.p:
-            return super(RandomTransform, self).__call__(sample)
-        return sample
-
-class OneOf(object):
-    def __init__(self, transforms):
-        self.transforms = [globals()[x['name']](**x.get('args', {})) for x in transforms]
-
+class OneOf(TransformContainer):
     def __call__(self, sample):
         return self.transforms[random.randrange(0, len(self.transforms))](sample)
 
@@ -76,8 +25,8 @@ class Identity(Transform):
         return sample
 
 class Resize(DynamicTransform):
-    def __init__(self, size):
-        super(Resize, self).__init__()
+    def __init__(self, size, **kwargs):
+        super(Resize, self).__init__(**kwargs)
         self.size = size
 
     def apply(self, sample):
@@ -183,6 +132,7 @@ class RandomAdjustContrast(RandomTransform):
 
 class RandomAdjustHueSaturation(Transform):
     def __init__(self, max_hue_delta=None, saturation_delta_range=None, p=.5):
+        super(RandomAdjustHueSaturation, self).__init__()
         self.p = p
         self.max_hue_delta = max_hue_delta
         self.saturation_delta_range = saturation_delta_range
@@ -219,7 +169,8 @@ class RandomAdjustHueSaturation(Transform):
         return img, target
 
 class ToFloatTensor(DynamicTransform):
-    def __init__(self, normalize=False):
+    def __init__(self, normalize=False, **kwargs):
+        super(ToFloatTensor, self).__init__(**kwargs)
         self.normalize = normalize
 
     def apply(self, sample):
@@ -239,7 +190,9 @@ class ToFloatTensor(DynamicTransform):
         return img, target
 
 class Normalize(DynamicTransform):
-    def __init__(self, mean=0.0, std=1.0):
+    def __init__(self, mean=0.0, std=1.0, **kwargs):
+        super(Normalize, self).__init__(**kwargs)
+
         if isinstance(mean, list):
             mean = torch.tensor(mean, dtype=torch.float32).view(-1, 1, 1)
 

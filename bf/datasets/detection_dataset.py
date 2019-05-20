@@ -15,8 +15,6 @@ class DetectionDataset(Dataset):
 
         if self.augment:
             img, target = self.augment((img, target))
-        if self.resize:
-            img, target = self.resize((img, target))
         if self.preprocess:
             img, target = self.preprocess((img, target))
 

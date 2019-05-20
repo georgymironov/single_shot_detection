@@ -1,23 +1,24 @@
-import bf.preprocessing
+from bf.preprocessing.transforms import Resize
 
 
 class DetectorWrapper(object):
-    def __init__(self, detector, postprocessor, preprocess=None, resize=None):
+    def __init__(self, detector, preprocess, postprocessor):
         self.device = next(detector.parameters()).device
         self.model = detector
-        self.postprocessor = postprocessor
         self.preprocess = preprocess
-        self.resize = resize
+        self.postprocessor = postprocessor
+
+        for transform in preprocess.transforms:
+            if isinstance(transform, Resize):
+                self.input_size = transform.size
+                break
 
     def predict_single(self, input_):
-        ratio_w = input_.shape[1] / self.resize.size[0]
-        ratio_h = input_.shape[0] / self.resize.size[1]
+        ratio_w = input_.shape[1] / self.input_size[0]
+        ratio_h = input_.shape[0] / self.input_size[1]
 
-        with bf.preprocessing.set_transform_type('no_target'):
-            if self.resize is not None:
-                input_ = self.resize(input_)
-            if self.preprocess is not None:
-                input_ = self.preprocess(input_)
+        with self.preprocess.context('no_target'):
+            input_ = self.preprocess(input_)
         if input_.dim() == 3:
             input_ = input_.unsqueeze(0)
 

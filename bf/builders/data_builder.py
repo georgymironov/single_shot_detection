@@ -1,25 +1,24 @@
 import numpy as np
 import torch
+
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose
 
 import bf.datasets
-import bf.preprocessing
 from bf.preprocessing import transforms
 
 
-def create_preprocessing(input_size, augmentations, preprocessing, transform_type):
-    bf.preprocessing.set_transform_type(transform_type)
-    resize = bf.preprocessing.transforms.Resize(input_size)
-    augment, preprocess = [
-        Compose([getattr(bf.preprocessing.transforms, x['name'])(**x.get('args', {})) for x in transform_set])
-        for transform_set in (augmentations, preprocessing)
-    ]
-    return resize, augment, preprocess
+def create_preprocessing(augmentations, preprocessing, input_size=None, transform_type='no_target'):
+    augment = transforms.Compose(augmentations, transform_type=transform_type)
+    preprocess = transforms.Compose(preprocessing, transform_type=transform_type)
+
+    if input_size:
+        resize = transforms.Resize(input_size, transform_type=transform_type)
+        preprocess.transforms.insert(0, resize)
+
+    return augment, preprocess
 
 def create_dataloaders(data_params,
                        batch_size,
-                       resize,
                        augment,
                        preprocess,
                        shuffle=False,
@@ -36,7 +35,6 @@ def create_dataloaders(data_params,
         kwargs = {k: v for k, v in kwargs.items() if k in Dataset.__init__.__code__.co_varnames}
 
         dataset = Dataset(**kwargs,
-                          resize=resize,
                           augment=augment if phase == 'train' else None,
                           preprocess=preprocess)
 

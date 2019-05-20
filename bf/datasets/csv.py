@@ -16,14 +16,12 @@ class Csv(DetectionDataset):
                  path,
                  labels,
                  label_map={},
-                 resize=None,
                  augment=None,
                  preprocess=None,
                  delimiter=','):
         self.class_labels = ['background'] + list(labels)
         self.num_classes = len(self.class_labels)
 
-        self.resize = resize
         self.augment = augment
         self.preprocess = preprocess
 

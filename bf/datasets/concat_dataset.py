@@ -8,7 +8,7 @@ from bf.utils.misc_utils import filter_kwargs
 
 
 class ConcatDataset(TorchDataset):
-    def __init__(self, datasets, labels, label_map={}, resize=None, augment=None, preprocess=None):
+    def __init__(self, datasets, labels, label_map={}, augment=None, preprocess=None):
         self.class_labels = ['background'] + list(labels)
         self.num_classes = len(self.class_labels)
 
@@ -30,7 +30,6 @@ class ConcatDataset(TorchDataset):
             kwargs.update({
                 'labels': labels,
                 'label_map': label_map,
-                'resize': resize,
                 'augment': augment,
                 'preprocess': preprocess
             })

@@ -30,12 +30,11 @@ if __name__ == '__main__':
     use_cuda = cfg.use_gpu and torch.cuda.is_available()
     device = 'cuda:0' if use_cuda else 'cpu'
 
-    resize, augment, preprocess = data_builder.create_preprocessing(cfg.input_size, cfg.augmentations, cfg.preprocessing, 'box')
+    augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, 'box')
 
     if 'train' in args.phases or 'eval' in args.phases:
         dataloader, dataset = data_builder.create_dataloaders(cfg.dataset,
                                                               cfg.batch_size,
-                                                              resize,
                                                               augment,
                                                               preprocess,
                                                               shuffle=cfg.shuffle,
@@ -50,8 +49,7 @@ if __name__ == '__main__':
                                                             loss_params=cfg.loss,
                                                             target_assigner_params=cfg.target_assigner,
                                                             state=state,
-                                                            preprocess=preprocess,
-                                                            resize=resize)
+                                                            preprocess=preprocess)
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
