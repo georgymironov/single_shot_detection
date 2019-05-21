@@ -5,6 +5,7 @@ import logging
 import multiprocessing as mp
 import os
 import re
+import shutil
 import sys
 
 from copy import copy
@@ -60,7 +61,14 @@ def init_checkpoint(args):
     else:
         checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
-    logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
+    if not args.debug:
+        os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
+        logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
+
+        new_config_path = os.path.join(checkpoint_dir, 'config.py')
+        if os.path.exists(args.config):
+            if not os.path.exists(new_config_path) or not os.path.samefile(args.config, new_config_path):
+                shutil.copy(args.config, new_config_path)
 
     return state, checkpoint_dir
 

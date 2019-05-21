@@ -1,8 +1,6 @@
 from collections import OrderedDict
 import csv
-import logging
 import os
-import shutil
 
 import torch
 
@@ -10,17 +8,10 @@ from bf.training import env, schedulers
 
 
 @env.master_only
-def checkpoint(event_emitter, checkpoint_dir, config_path=None, save_every=1):
-    os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
-    new_config_path = os.path.join(checkpoint_dir, 'config.py')
-    if os.path.exists(config_path):
-        if not os.path.exists(new_config_path) or not os.path.samefile(config_path, new_config_path):
-            shutil.copy(config_path, new_config_path)
-    logging.info(f'===> Checkpoints will be saved to {checkpoint_dir}')
-
+def checkpoint(event_emitter, checkpoint_dir, save_every=1):
     @event_emitter.on('epoch_end')
     def save_checkpoint(global_state=None, **kwargs):
-        if (global_state['epoch'] + 1) % save_every == 0:
+        if os.path.exists(checkpoint_dir) and (global_state['epoch'] + 1) % save_every == 0:
             torch.save(global_state, os.path.join(checkpoint_dir, f'ckpt-{global_state["global_step"]}.pt'))
 
 @env.master_only
@@ -69,19 +60,19 @@ def tensorboard(event_emitter, log_dir):
 
     return writer
 
-def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metric):
+def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metric, optimizer=None, writer=None):
     if isinstance(scheduler_, schedulers.ReduceLROnPlateau):
         def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
             if phase == 'eval':
                 scheduler_.step(phase_state[scheduler_metric])
-                event_emitter.emit('scheduler_step')
+                event_emitter.emit('scheduler_step', global_state=global_state)
 
         event_name = 'phase_end'
     else:
         def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
             if phase == 'train':
                 scheduler_.step()
-                event_emitter.emit('scheduler_step')
+                event_emitter.emit('scheduler_step', global_state=global_state)
 
         if run_scheduler_each_step:
             event_name = 'step_end'
@@ -89,3 +80,10 @@ def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metr
             event_name = 'phase_end'
 
     event_emitter.add_event_handler(event_name, scheduler_step)
+
+    if writer and optimizer:
+        @event_emitter.on('scheduler_step')
+        @env.master_only
+        def log_lr(global_state, **kwargs):
+            for i, x in enumerate(optimizer.param_groups):
+                writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], global_state['global_step'])

@@ -25,14 +25,13 @@ def main(args):
     augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, 'box')
 
     if 'train' in args.phases or 'eval' in args.phases:
-        dataloader, dataset = data_builder.create_dataloaders(cfg.dataset,
-                                                              cfg.batch_size,
-                                                              augment,
-                                                              preprocess,
-                                                              shuffle=cfg.shuffle,
-                                                              num_workers=cfg.num_workers,
-                                                              pin_memory=use_cuda,
-                                                              distributed=args.distributed)
+        datasets = data_builder.create_datasets(cfg.dataset, augment=augment, preprocess=preprocess)
+        dataloaders = data_builder.create_dataloaders(datasets=datasets,
+                                                      batch_size=cfg.batch_size,
+                                                      shuffle=cfg.shuffle,
+                                                      num_workers=cfg.num_workers,
+                                                      pin_memory=use_cuda,
+                                                      distributed=args.distributed)
 
     detector, init_epoch_state_fn, step_fn = init_detection(device=device,
                                                             model_params=cfg.model,
@@ -47,7 +46,7 @@ def main(args):
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
-                                            class_labels=dataset['eval'].class_labels,
+                                            class_labels=datasets['eval'].class_labels,
                                             iou_threshold=.5,
                                             voc=cfg.is_voc('val'))}
     else:
@@ -60,7 +59,7 @@ def main(args):
 
     if 'train' in args.phases:
         epochs = cfg.train['epochs']
-        total_train_steps = len(dataloader['train']) // cfg.train.get('accumulation_steps', 1)
+        total_train_steps = len(dataloaders['train']) // cfg.train.get('accumulation_steps', 1)
 
         cfg.update(locals())
 
@@ -76,23 +75,13 @@ def main(args):
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
 
-        if not args.debug:
-            callbacks.checkpoint(trainer, checkpoint_dir, config_path=args.config, save_every=cfg.train['eval_every'])
-
-        callbacks.logger(trainer, helpers.get_csv_log_file(args, checkpoint_dir))
+        callbacks.checkpoint(trainer, checkpoint_dir, save_every=cfg.train.get('eval_every', 1))
+        callbacks.logger(trainer, csv_log_path=helpers.get_csv_log_file(args, checkpoint_dir))
         writer = callbacks.tensorboard(trainer, checkpoint_dir) if args.tensorboard else None
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)
-
-            callbacks.scheduler(trainer, *scheduler)
-
-            if writer:
-                @trainer.on('scheduler_step')
-                @env.master_only
-                def log_lr(*args, **kwargs):
-                    for i, x in enumerate(optimizer.param_groups):
-                        writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], trainer.global_step)
+            callbacks.scheduler(trainer, *scheduler, optimizer=optimizer, writer=writer)
 
         if 'pruner' in cfg.train:
             pruner = Pruner(detector.model, **cfg.train['pruner'])
@@ -104,11 +93,11 @@ def main(args):
         if state:
             trainer.resume(initial_step=state['global_step'] + 1, initial_epoch=state['epoch'] + 1)
 
-        trainer.run(dataloader, num_batches_per_epoch=cfg.train.get('num_batches_per_epoch'))
+        trainer.run(dataloaders, num_batches_per_epoch=cfg.train.get('num_batches_per_epoch'))
 
     elif 'eval' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
-        evaluator.run(dataloader['eval'])
+        evaluator.run(dataloaders['eval'])
 
     if 'test' in args.phases:
         viewer = VideoViewer(args.video, detector)
