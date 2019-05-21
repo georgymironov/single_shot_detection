@@ -34,6 +34,7 @@ python3 main.py --config samples/ssd_mb2_voc.py
 ### Requirements
 - `python 3.6`
 - `opencv` with python bindings
+- `libturbojpeg`
 - `requirements.txt`
 ### Structure
 Some places that may be useful to look into:
