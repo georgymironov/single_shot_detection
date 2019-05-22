@@ -8,6 +8,26 @@ from bf.training import env, schedulers
 
 
 @env.master_only
+def progress(event_emitter):
+    train_len = None
+
+    @event_emitter.on('phase_start')
+    def get_phase_len(phase, global_state, phase_len, **kwargs):
+        if phase == 'train':
+            nonlocal train_len
+            train_len = phase_len
+
+    @event_emitter.on('step_end')
+    def print_progress(phase, global_state, state, **kwargs):
+        if phase == 'train':
+            messages = [f'[train] step: {global_state["global_step"]}/{train_len-1}']
+            for k, v in state.items():
+                messages.append(f'{k}: {v:6f}')
+            for i, x in enumerate(global_state['optimizer'].param_groups):
+                messages.append(f'lr {i}: {x["lr"]:.12f}')
+            print(f'{", ".join(messages)}    ', end='\r')
+
+@env.master_only
 def checkpoint(event_emitter, checkpoint_dir, save_every=1):
     @event_emitter.on('epoch_end')
     def save_checkpoint(global_state=None, **kwargs):
@@ -15,7 +35,7 @@ def checkpoint(event_emitter, checkpoint_dir, save_every=1):
             torch.save(global_state, os.path.join(checkpoint_dir, f'ckpt-{global_state["global_step"]}.pt'))
 
 @env.master_only
-def logger(event_emitter, csv_log_path):
+def csv_logger(event_emitter, csv_log_path):
     log = []
     keys = OrderedDict({'global_step': None})
 
@@ -60,7 +80,7 @@ def tensorboard(event_emitter, log_dir):
 
     return writer
 
-def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metric, optimizer=None, writer=None):
+def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metric, writer=None):
     if isinstance(scheduler_, schedulers.ReduceLROnPlateau):
         def scheduler_step(phase=None, global_state=None, phase_state=None, *args, **kwargs):
             if phase == 'eval':
@@ -81,9 +101,9 @@ def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metr
 
     event_emitter.add_event_handler(event_name, scheduler_step)
 
-    if writer and optimizer:
+    if writer:
         @event_emitter.on('scheduler_step')
         @env.master_only
         def log_lr(global_state, **kwargs):
-            for i, x in enumerate(optimizer.param_groups):
+            for i, x in enumerate(global_state['optimizer'].param_groups):
                 writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], global_state['global_step'])
