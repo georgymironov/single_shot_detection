@@ -110,8 +110,6 @@ def get_csv_log_file(args, log_dir):
 
 def launch(args, main):
     if args.distributed:
-        assert 'train' in args.phases
-
         mp.set_start_method('spawn')
         processes = []
 

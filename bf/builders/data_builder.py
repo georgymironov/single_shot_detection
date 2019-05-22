@@ -58,7 +58,7 @@ def create_dataloaders(datasets,
     worker_init_fn = partial(_worker_init_fn, seed=torch.initial_seed())
 
     for phase in datasets.keys():
-        if distributed:
+        if distributed and phase == 'train':
             sampler = DistributedSampler(datasets[phase])
         elif shuffle and phase == 'train':
             sampler = RandomSampler(datasets[phase])
