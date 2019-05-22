@@ -12,7 +12,6 @@ class Trainer(EventEmitter):
                  epochs,
                  phases,
                  model,
-                 optimizer,
                  init_epoch_state_fn=None,
                  step_fn=None,
                  accumulation_steps=1,
@@ -23,7 +22,6 @@ class Trainer(EventEmitter):
         self.epochs = epochs
         self.phases = phases
         self.model = model
-        self.optimizer = optimizer
         self.init_epoch_state_fn = init_epoch_state_fn
         self.step_fn = step_fn
         self.accumulation_steps = accumulation_steps
@@ -32,8 +30,7 @@ class Trainer(EventEmitter):
         self.state = {
             'epoch': 0,
             'global_step': 0,
-            'model': model,
-            'optimizer': optimizer
+            'model': model
         }
 
         self.evaluator = bf.eval.Evaluator(model,
@@ -56,7 +53,6 @@ class Trainer(EventEmitter):
         epoch_state = self.init_epoch_state_fn()
 
         self.model.train()
-        self.optimizer.zero_grad()
 
         for step, batch in enumerate(dataloader):
             if step >= num_batches:
@@ -71,8 +67,6 @@ class Trainer(EventEmitter):
                 loss.backward()
 
             if (step + 1) % self.accumulation_steps == 0:
-                self.optimizer.step()
-                self.optimizer.zero_grad()
                 self.emit('step_end', phase='train', global_state=self.state, state=epoch_state)
 
         elapsed = time.time() - start
@@ -89,6 +83,8 @@ class Trainer(EventEmitter):
     def run(self, dataloaders, num_batches_per_epoch=None):
         start = time.time()
         phase_len = self._get_phase_len(dataloaders, num_batches_per_epoch)
+
+        self.emit('start', global_state=self.state)
 
         for epoch in range(self.state['epoch'], self.epochs):
             logging.info(f'Epoch: {epoch}/{self.epochs-1}')
@@ -114,9 +110,8 @@ class Trainer(EventEmitter):
 
                 if phase == 'train':
                     self.state['model_dict'] = self.model.state_dict()
-                    self.state['optimizer_dict'] = self.optimizer.state_dict()
 
-                self.emit('phase_end', phase=phase, global_state=self.state, epoch_state=epoch_state, phase_state=phase_state)
+                self.emit('phase_end', phase=phase, global_state=self.state, phase_state=phase_state)
 
             self.emit('epoch_end', phase=phase, global_state=self.state, epoch_state=epoch_state)
 

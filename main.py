@@ -58,27 +58,31 @@ def main(args):
         return
 
     if 'train' in args.phases:
-        epochs = cfg.train['epochs']
-        total_train_steps = len(dataloaders['train']) // cfg.train.get('accumulation_steps', 1)
-
-        cfg.update(locals())
+        cfg.update({
+            'epochs': cfg.train['epochs'],
+            'total_train_steps': len(dataloaders['train']) // cfg.train.get('accumulation_steps', 1)
+        })
 
         optimizer = train_builder.create_optimizer(detector.model, cfg.train['optimizer'], state=state)
 
-        trainer = bf.train.Trainer(epochs,
+        trainer = bf.train.Trainer(cfg.train['epochs'],
                                    args.phases,
                                    detector.model,
-                                   optimizer,
                                    init_epoch_state_fn=init_epoch_state_fn,
                                    step_fn=step_fn,
                                    accumulation_steps=cfg.train.get('accumulation_steps', 1),
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
 
+        callbacks.optimizer(trainer, optimizer)
         callbacks.progress(trainer)
         callbacks.checkpoint(trainer, checkpoint_dir, save_every=cfg.train.get('eval_every', 1))
         callbacks.csv_logger(trainer, csv_log_path=helpers.get_csv_log_file(args, checkpoint_dir))
-        writer = callbacks.tensorboard(trainer, checkpoint_dir) if args.tensorboard else None
+
+        if args.tensorboard:
+            writer = callbacks.tensorboard(trainer, checkpoint_dir)
+        else:
+            writer = None
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)

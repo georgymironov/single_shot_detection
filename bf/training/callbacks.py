@@ -3,9 +3,35 @@ import csv
 import os
 
 import torch
+import torch.distributed as dist
 
 from bf.training import env, schedulers
 
+
+def optimizer(event_emitter, optimizer):
+    @event_emitter.on('start')
+    def add_to_state(global_state, **kwargs):
+        global_state['optimizer'] = optimizer
+
+    @event_emitter.on('step_start')
+    def zero_grad(phase, global_state, state, **kwargs):
+        if phase == 'train':
+            optimizer.zero_grad()
+
+    @event_emitter.on('step_end')
+    def optimizer_step(phase, global_state, state, **kwargs):
+        if phase == 'train':
+            if dist.is_initialized():
+                for param in optimizer.param_groups[0]['params']:
+                    if param.requires_grad and param.grad is not None:
+                        dist.all_reduce(param.grad.data)
+                        param.grad.data.div_(dist.get_world_size())
+            optimizer.step()
+
+    @event_emitter.on('phase_end')
+    def save_state(phase, global_state, phase_state, **kwargs):
+        if phase == 'train':
+            global_state['optimizer_dict'] = optimizer.state_dict()
 
 @env.master_only
 def progress(event_emitter):
