@@ -46,7 +46,7 @@ def progress(event_emitter):
     @event_emitter.on('step_end')
     def print_progress(phase, global_state, state, **kwargs):
         if phase == 'train':
-            messages = [f'[train] step: {global_state["global_step"]}/{train_len-1}']
+            messages = [f'[train] step: {global_state["global_step"]%train_len}/{train_len-1}']
             for k, v in state.items():
                 messages.append(f'{k}: {v:6f}')
             for i, x in enumerate(global_state['optimizer'].param_groups):

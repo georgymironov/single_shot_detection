@@ -29,7 +29,7 @@ class Trainer(EventEmitter):
 
         self.state = {
             'epoch': 0,
-            'global_step': 0,
+            'global_step': -1,
             'model': model
         }
 
