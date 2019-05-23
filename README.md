@@ -17,20 +17,12 @@ Download [PASCAL VOC](http://host.robots.ox.ac.uk/pascal/VOC/) or [COCO](http://
 ```
 python3 main.py --config samples/ssd_mb2_voc.py
 ```
-<sup><sup>(don't forget to adjust the path first!)</sup></sup>
-#### Command line arguments:
-- `config` - a path to a config file
-- `save_dir` - a folder where checkpoints are going to be saved
-- `checkpoint_dir` - set this to restore training from a previously created checkpoint. All subsequent checkpoints will saved here instead of `save_dir` unless `new_checkpoint` arguments is specified
-- `phases` - one or multiple runtime phases:
-    - `train` - run train loop
-    - `eval` - run eval pass; if is set along with `train` runs each `eval_every`'th epoch
-    - `test` - run on a video, drawing annotations
-    - `export` - export to ONNX
-    - `export-mo` - export to OpenVINO model format
-    - `embed` - *(for debug purposes)* drop to IPython shell after initialization
-- `video` - a video or a folder (which will be searched recursively) for `test` phase
-- `tensorboard` - save tensorboard log to the checkpoint folder
+<sup><sup>(don't forget to adjust paths in the config first!)</sup></sup>
+
+To see the list of parameters:
+```
+python3 main.py --help
+```
 ### Requirements
 - `python 3.6`
 - `opencv` with python bindings

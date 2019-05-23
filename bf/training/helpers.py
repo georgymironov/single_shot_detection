@@ -90,6 +90,8 @@ def get_default_argparser():
                         help='Log to tensorboard')
     parser.add_argument('--load-weights', default=False, action='store_true',
                         help='Restore from weigths rather than full model when loading from checkpoint')
+    parser.add_argument('--cpu', default=False, action='store_true',
+                        help='Run model on CPU')
 
     distributed = parser.add_argument_group('distributed')
     distributed.add_argument('--distributed', default=False, action='store_true',

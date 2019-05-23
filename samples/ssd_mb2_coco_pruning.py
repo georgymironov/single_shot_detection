@@ -1,5 +1,4 @@
 seed = 23
-use_gpu = True
 
 model = {
     'detector': {
