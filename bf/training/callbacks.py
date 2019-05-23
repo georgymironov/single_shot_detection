@@ -14,12 +14,12 @@ def optimizer(event_emitter, optimizer):
         global_state['optimizer'] = optimizer
 
     @event_emitter.on('step_start')
-    def zero_grad(phase, global_state, state, **kwargs):
+    def zero_grad(phase, state, global_state=None, **kwargs):
         if phase == 'train':
             optimizer.zero_grad()
 
     @event_emitter.on('step_end')
-    def optimizer_step(phase, global_state, state, **kwargs):
+    def optimizer_step(phase, state, global_state=None, **kwargs):
         if phase == 'train':
             if dist.is_initialized():
                 for param in optimizer.param_groups[0]['params']:
@@ -29,29 +29,32 @@ def optimizer(event_emitter, optimizer):
             optimizer.step()
 
     @event_emitter.on('phase_end')
-    def save_state(phase, global_state, phase_state, **kwargs):
+    def save_state(phase, phase_state, global_state=None, **kwargs):
         if phase == 'train':
             global_state['optimizer_dict'] = optimizer.state_dict()
 
 @env.master_only
 def progress(event_emitter):
     train_len = None
+    eval_len = None
 
     @event_emitter.on('phase_start')
-    def get_phase_len(phase, global_state, phase_len, **kwargs):
+    def get_phase_len(phase, phase_len, global_state=None, **kwargs):
         if phase == 'train':
             nonlocal train_len
             train_len = phase_len
+        if phase == 'eval':
+            nonlocal eval_len
+            eval_len = phase_len
 
     @event_emitter.on('step_end')
-    def print_progress(phase, global_state, state, **kwargs):
+    def print_progress(phase, state, step, global_state=None, **kwargs):
+        phase_len = train_len if phase == 'train' else eval_len
+        messages = [f'[{phase}] step: {step}/{phase_len-1}'] + [f'{k}: {v:6f}' for k, v in state.items()]
         if phase == 'train':
-            messages = [f'[train] step: {global_state["global_step"]%train_len}/{train_len-1}']
-            for k, v in state.items():
-                messages.append(f'{k}: {v:6f}')
             for i, x in enumerate(global_state['optimizer'].param_groups):
                 messages.append(f'lr {i}: {x["lr"]:.12f}')
-            print(f'{", ".join(messages)}    ', end='\r')
+        print(f'{", ".join(messages)}    ', end='\r')
 
 @env.master_only
 def checkpoint(event_emitter, checkpoint_dir, save_every=1):

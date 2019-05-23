@@ -7,7 +7,7 @@ import bf.eval
 from bf.utils.event_emitter import EventEmitter
 
 
-class Trainer(EventEmitter):
+class Trainer(object):
     def __init__(self,
                  epochs,
                  phases,
@@ -33,10 +33,13 @@ class Trainer(EventEmitter):
             'model': model
         }
 
+        self.event_emitter = EventEmitter()
+
         self.evaluator = bf.eval.Evaluator(model,
                                            init_epoch_state_fn,
                                            step_fn,
-                                           metrics)
+                                           metrics,
+                                           event_emitter=self.event_emitter)
 
     @property
     def global_step(self):
@@ -50,7 +53,10 @@ class Trainer(EventEmitter):
     def _train_epoch(self, dataloader, num_batches=None):
         start = time.time()
         num_batches = num_batches or len(dataloader)
-        epoch_state = self.init_epoch_state_fn()
+        phase_len = num_batches // self.accumulation_steps
+        phase_state = self.init_epoch_state_fn()
+
+        self.event_emitter.emit('phase_start', phase='train', global_state=self.state, phase_len=phase_len)
 
         self.model.train()
 
@@ -60,31 +66,28 @@ class Trainer(EventEmitter):
 
             if (step + 1) % self.accumulation_steps == 0:
                 self.state['global_step'] += 1
-                self.emit('step_start', phase='train', global_state=self.state, state=epoch_state)
+                self.event_emitter.emit('step_start', phase='train', step=step, global_state=self.state, state=phase_state)
 
             with torch.enable_grad():
-                loss, _, epoch_state = self.step_fn(step, 'train', batch, epoch_state)
+                loss, _, phase_state = self.step_fn(step, 'train', batch, phase_state)
                 loss.backward()
 
             if (step + 1) % self.accumulation_steps == 0:
-                self.emit('step_end', phase='train', global_state=self.state, state=epoch_state)
+                self.event_emitter.emit('step_end', phase='train', step=step, global_state=self.state, state=phase_state)
+
+        self.state['model_dict'] = self.model.state_dict()
+
+        self.event_emitter.emit('phase_end', phase='train', global_state=self.state, phase_state=phase_state)
 
         elapsed = time.time() - start
         logging.info(f'\n[train] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
 
-        return epoch_state
-
-    def _get_phase_len(self, dataloaders, num_batches_per_epoch=None):
-        phase_len = {'eval': len(dataloaders['eval'])}
-        phase_len['train'] = num_batches_per_epoch or len(dataloaders['train'])
-        phase_len['train'] //= self.accumulation_steps
-        return phase_len
+        return phase_state
 
     def run(self, dataloaders, num_batches_per_epoch=None):
         start = time.time()
-        phase_len = self._get_phase_len(dataloaders, num_batches_per_epoch)
 
-        self.emit('start', global_state=self.state)
+        self.event_emitter.emit('start', global_state=self.state)
 
         for epoch in range(self.state['epoch'], self.epochs):
             logging.info(f'Epoch: {epoch}/{self.epochs-1}')
@@ -92,28 +95,20 @@ class Trainer(EventEmitter):
             self.state['epoch'] = epoch
             epoch_state = {}
 
-            self.emit('epoch_start', global_state=self.state)
+            self.event_emitter.emit('epoch_start', global_state=self.state)
 
             for phase in self.phases:
-                if phase == 'eval' and (epoch + 1) % self.eval_every != 0:
-                    continue
-
-                self.emit('phase_start', phase=phase, global_state=self.state, phase_len=phase_len[phase])
-
                 if phase == 'train':
                     phase_state = self._train_epoch(dataloaders['train'], num_batches=num_batches_per_epoch)
-                if phase == 'eval':
+                elif phase == 'eval' and (epoch + 1) % self.eval_every == 0:
                     phase_state = self.evaluator.run(dataloaders['eval'])
+                else:
+                    continue
 
                 for k, v in phase_state.items():
                     epoch_state[f'{phase}_{k}'] = v
 
-                if phase == 'train':
-                    self.state['model_dict'] = self.model.state_dict()
-
-                self.emit('phase_end', phase=phase, global_state=self.state, phase_state=phase_state)
-
-            self.emit('epoch_end', phase=phase, global_state=self.state, epoch_state=epoch_state)
+            self.event_emitter.emit('epoch_end', phase=phase, global_state=self.state, epoch_state=epoch_state)
 
         elapsed = time.time() - start
         logging.info(f'Training finished. Total time spent: {elapsed//60:.0f}m {elapsed%60:.0f}s')

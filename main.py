@@ -74,24 +74,26 @@ def main(args):
                                    metrics=metrics,
                                    eval_every=cfg.train['eval_every'])
 
-        callbacks.optimizer(trainer, optimizer)
-        callbacks.progress(trainer)
-        callbacks.checkpoint(trainer, checkpoint_dir, save_every=cfg.train.get('eval_every', 1))
-        callbacks.csv_logger(trainer, csv_log_path=helpers.get_csv_log_file(args, checkpoint_dir))
+        event_emitter = trainer.event_emitter
+
+        callbacks.optimizer(event_emitter, optimizer)
+        callbacks.progress(event_emitter)
+        callbacks.checkpoint(event_emitter, checkpoint_dir, save_every=cfg.train.get('eval_every', 1))
+        callbacks.csv_logger(event_emitter, csv_log_path=helpers.get_csv_log_file(args, checkpoint_dir))
 
         if args.tensorboard:
-            writer = callbacks.tensorboard(trainer, checkpoint_dir)
+            writer = callbacks.tensorboard(event_emitter, checkpoint_dir)
         else:
             writer = None
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)
-            callbacks.scheduler(trainer, *scheduler, writer=writer)
+            callbacks.scheduler(event_emitter, *scheduler, writer=writer)
 
         if 'pruner' in cfg.train:
             pruner = Pruner(detector.model, **cfg.train['pruner'])
 
-            @trainer.on('epoch_start')
+            @event_emitter.on('epoch_start')
             def prune(*args, **kwargs):
                 pruner.prune()
 
