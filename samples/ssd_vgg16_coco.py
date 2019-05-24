@@ -56,7 +56,7 @@ postprocess = {
 
 target_assigner = {
     'matched_threshold': 0.5,
-    'unmatched_threshold': 0.3,
+    'unmatched_threshold': 0.5,
 }
 
 augmentations = [
@@ -101,12 +101,12 @@ dataset = {
     }
 }
 
-batch_size = 8
+batch_size = 12
 shuffle = True
-num_workers = 2
+num_workers = 4
 
 train = {
-    'accumulation_steps': 4,
+    'accumulation_steps': 1,
     'epochs': 500,
     'eval_every': 10,
 
