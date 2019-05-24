@@ -71,7 +71,7 @@ def create_dataloaders(datasets,
                                         collate_fn=datasets[phase].collate,
                                         num_workers=num_workers,
                                         pin_memory=pin_memory,
-                                        drop_last=True,
+                                        drop_last=(phase == 'train'),
                                         worker_init_fn=worker_init_fn)
 
     return dataloaders
