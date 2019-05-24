@@ -14,16 +14,22 @@ class ConcatDataset(TorchDataset):
 
         dataset_iter = iter(datasets)
         datasets = []
+
+        collate = None
+        display = None
+
         for dataset_args in dataset_iter:
             Dataset = getattr(bf.datasets, dataset_args['name'])
 
-            if hasattr(self, 'collate'):
-                assert self.collate is Dataset.collate
+            if collate:
+                assert collate is Dataset.collate
             else:
-                self.collate = Dataset.collate
+                collate = Dataset.collate
 
-            if not hasattr(self, 'display'):
-                self.display = types.MethodType(Dataset.display, self)
+            if display:
+                assert display is Dataset.display
+            else:
+                display = Dataset.display
 
             Dataset = filter_kwargs(Dataset)
             kwargs = dict(dataset_args.items())
@@ -36,6 +42,12 @@ class ConcatDataset(TorchDataset):
             datasets.append(Dataset(**kwargs))
 
         self.dataset = TorchConcatDataset(datasets)
+
+    def collate(self, *args, **kwargs):
+        return self.dataset.datasets[0].collate(*args, **kwargs)
+
+    def display(self, *args, **kwargs):
+        return self.dataset.datasets[0].display.__func__(self, *args, **kwargs)
 
     def __getitem__(self, index):
         return self.dataset[index]
