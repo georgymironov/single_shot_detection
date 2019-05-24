@@ -104,6 +104,7 @@ def main(args):
 
     elif 'eval' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
+        callbacks.progress(evaluator.event_emitter)
         evaluator.run(dataloaders['eval'])
 
     if 'test' in args.phases:
