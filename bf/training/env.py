@@ -5,12 +5,16 @@ import random
 
 import numpy as np
 import torch
+import torch.distributed as dist
 
+
+def is_master():
+    return not dist.is_initialized() or dist.get_rank() == 0
 
 def master_only(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        if is_master():
             return func(*args, **kwargs)
     return wrapper
 
@@ -36,16 +40,16 @@ def init_random_state(args, cfg):
     torch.cuda.manual_seed(cfg.seed)
 
 def set_device(args, cfg):
-    use_cuda = cfg.use_gpu and torch.cuda.is_available()
+    use_cuda = not args.cpu and torch.cuda.is_available()
 
     if args.distributed:
         assert use_cuda
         device = f'cuda:{args.rank}'
         torch.cuda.set_device(device)
-        torch.distributed.init_process_group(backend='nccl',
-                                             init_method=f'tcp://127.0.0.1:{args.master_port}',
-                                             world_size=args.nproc,
-                                             rank=args.rank)
+        dist.init_process_group(backend='nccl',
+                                init_method=f'tcp://127.0.0.1:{args.master_port}',
+                                world_size=args.nproc,
+                                rank=args.rank)
         num_gpus = 1
     else:
         device = 'cuda:0' if use_cuda else 'cpu'
