@@ -46,7 +46,7 @@ def init_checkpoint(args):
 
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
-        state = torch.load(checkpoint)
+        state = torch.load(checkpoint, map_location='cpu')
         if 'model' in state:
             if args.load_weights:
                 del state['model']

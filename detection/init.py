@@ -33,7 +33,7 @@ def init(device,
         del state['model']
     elif 'model' in model_params['detector']:
         logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
-        loaded = torch.load(model_params['detector']['model'])
+        loaded = torch.load(model_params['detector']['model'], map_location='cpu')
 
         if type(loaded) is dict and 'model' in loaded:
             detector = loaded['model']
@@ -46,12 +46,11 @@ def init(device,
         detector = filter_kwargs(detector_builder.build)(base,
                                                          anchor_generator_params=model_params['anchor_generator'],
                                                          **model_params['detector'])
-        detector = detector.to(device)
 
         if 'weight' in model_params['detector']:
             logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
             state_dict = detector.state_dict()
-            state_dict.update(torch.load(model_params['detector']['weight']))
+            state_dict.update(torch.load(model_params['detector']['weight'], map_location='cpu'))
             detector.load_state_dict(state_dict)
 
         if 'model_dict' in state:
@@ -59,6 +58,7 @@ def init(device,
             detector.load_state_dict(state['model_dict'])
             del state['model_dict']
 
+    detector = detector.to(device)
     torch.cuda.empty_cache()
 
     if distributed:
