@@ -1,5 +1,6 @@
 import functools
 import logging
+from collections import OrderedDict
 
 import torch
 from torch.nn import SyncBatchNorm
@@ -55,7 +56,10 @@ def init(device,
 
         if 'model_dict' in state:
             logging.info('===> Loading model weights from checkpoint')
-            detector.load_state_dict(state['model_dict'])
+            model_dict = OrderedDict()
+            for k, v in state['model_dict'].items():
+                model_dict[k.replace('predictor.module.', 'predictor.')] = v
+            detector.load_state_dict(model_dict)
             del state['model_dict']
 
     detector = detector.to(device)
