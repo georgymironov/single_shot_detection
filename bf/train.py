@@ -2,6 +2,7 @@ import logging
 import time
 
 import torch
+import torch.distributed as dist
 
 import bf.eval
 from bf.utils.event_emitter import EventEmitter
@@ -30,8 +31,10 @@ class Trainer(object):
         self.state = {
             'epoch': 0,
             'global_step': -1,
-            'model': model
         }
+
+        if not dist.is_initialized():
+            self.state['model'] = model
 
         self.event_emitter = EventEmitter()
 
@@ -48,7 +51,7 @@ class Trainer(object):
     def resume(self, initial_epoch, initial_step):
         self.state['epoch'] = initial_epoch
         self.state['global_step'] = initial_step
-        logging.info(f'>> Resuming from: step: {initial_epoch}, epoch: {initial_epoch}')
+        logging.info(f'>> Resuming from: step: {initial_step}, epoch: {initial_epoch}')
 
     def _train_epoch(self, dataloader, num_batches=None):
         start = time.time()
