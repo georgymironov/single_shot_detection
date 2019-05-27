@@ -11,7 +11,8 @@ from bf.utils import torch_utils
 def _is_depthwise_conv(module):
     return isinstance(module, nn.Conv2d) and module.out_channels == module.in_channels == module.groups
 
-def _mask_parameter(parameter, mask):
+def _mask_parameter(module, name, mask):
+    parameter = getattr(module, name, None)
     if parameter is not None:
         parameter.data = parameter.data[mask]
         if parameter.grad is not None:
@@ -21,9 +22,9 @@ def _remove_depthwise_conv_channel(module, indexes):
     mask = torch.ones(module.out_channels, dtype=torch.uint8)
     mask[indexes] = 0
 
-    _mask_parameter(module.weight, mask)
-    _mask_parameter(module.bias, mask)
-    _mask_parameter(module.mean_activation, mask)
+    _mask_parameter(module, 'weight', mask)
+    _mask_parameter(module, 'bias', mask)
+    _mask_parameter(module, 'mean_activation', mask)
 
     module.out_channels = module.in_channels = module.groups = module.out_channels - len(indexes)
 
@@ -31,9 +32,9 @@ def _remove_conv_out_channel(module, indexes):
     mask = torch.ones(module.out_channels, dtype=torch.uint8)
     mask[indexes] = 0
 
-    _mask_parameter(module.weight, mask)
-    _mask_parameter(module.bias, mask)
-    _mask_parameter(module.mean_activation, mask)
+    _mask_parameter(module, 'weight', mask)
+    _mask_parameter(module, 'bias', mask)
+    _mask_parameter(module, 'mean_activation', mask)
 
     module.out_channels = module.out_channels - len(indexes)
 
@@ -51,10 +52,10 @@ def _remove_batchnorm_channel(module, indexes):
     mask = torch.ones(module.num_features, dtype=torch.uint8)
     mask[indexes] = 0
 
-    _mask_parameter(module.weight, mask)
-    _mask_parameter(module.bias, mask)
-    _mask_parameter(module.running_mean, mask)
-    _mask_parameter(module.running_var, mask)
+    _mask_parameter(module, 'weight', mask)
+    _mask_parameter(module, 'bias', mask)
+    _mask_parameter(module, 'running_mean', mask)
+    _mask_parameter(module, 'running_var', mask)
 
     module.num_features = module.num_features - len(indexes)
 

@@ -1,11 +1,36 @@
 from collections import defaultdict
+import logging
 import re
+
+import torch
 
 from bf.utils import torch_utils
 
 
 def _to_torch_path(onnx_node):
     return '.'.join(re.findall(r'\[(.*?)\]', onnx_node.scopeName()))
+
+def _to_tuple(val):
+    if isinstance(val, list):
+        return tuple(_to_tuple(x) for x in val)
+    if isinstance(val, torch.Tensor):
+        if val.nelement() > 1:
+            return tuple(val.tolist())
+        val = val.item()
+    return (val,)
+
+def _equal(a, b):
+    if isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor):
+        return a.eq(b).all().item()
+    return a == b
+
+def _hash_node(node):
+    return hash(tuple(x.unique() for x in node.inputs()) + (node.kind(), _to_torch_path(node)) +
+                tuple((attr,) + _to_tuple(node[attr]) for attr in node.attributeNames()))
+
+def _same_node(a, b):
+    return list(a.inputs()) == list(b.inputs()) and a.kind() == b.kind() and _to_torch_path(a) == _to_torch_path(b) and \
+        a.attributeNames() == b.attributeNames() and all(_equal(a[attr], b[attr]) for attr in a.attributeNames())
 
 def _is_depthwise_conv_onnx(onnx_node):
     if onnx_node.kind() != 'onnx::Conv':
@@ -34,15 +59,19 @@ class TraceInspector(object):
         nodes = {}
         self.ignore = []
         for node in graph.nodes():
-            path = _to_torch_path(node)
-            if path not in nodes:
-                nodes[path] = node
+            node_hash = _hash_node(node)
+            if node_hash not in nodes:
+                nodes[node_hash] = node
                 continue
+
+            if not _same_node(nodes[node_hash], node):
+                raise KeyError('Collision occured')
 
             for output in node.outputs():
                 for affected in self.output_nodes[output.unique()]:
-                    for old_output, new_output in zip(node.outputs(), nodes[path].outputs()):
+                    for old_output, new_output in zip(node.outputs(), nodes[node_hash].outputs()):
                         affected.replaceInputWith(old_output, new_output)
+                        logging.debug(f'DBG: REPLACED {old_output} -> {new_output}')
                 self.ignore.append(output.unique())
 
         self.nodes = {}

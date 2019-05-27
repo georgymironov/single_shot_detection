@@ -174,22 +174,33 @@ class DepthwiseFeaturePyramid(Features):
 
     def forward(self, x):
         sources, _ = super(DepthwiseFeaturePyramid, self).forward(x)
-        features = [lateral(source) for source, lateral in zip(sources, self.pyramid_lateral)]
 
-        for down in self.downsample:
-            padding = [0, 0, 0, 0]
-            if (features[-1].shape[3] > 2):
-                padding[0:2] = [0, 1]
-            if (features[-1].shape[2] > 2):
-                padding[2:4] = [0, 1]
-            first = down[0](F.pad(features[-1], padding))
-            second = down[1](features[-1])
-            features.append(torch.cat([first, second], dim=1))
+        features = []
+        with torch.jit.scope(f'{type(self.pyramid_lateral).__name__}[pyramid_lateral]'):
+            for i, (source, lateral) in enumerate(zip(sources, self.pyramid_lateral)):
+                with torch.jit.scope(f'{type(lateral).__name__}[{i}]'):
+                    features.append(lateral(source))
+
+        with torch.jit.scope(f'{type(self.downsample).__name__}[downsample]'):
+            for i, down in enumerate(self.downsample):
+                padding = [0, 0, 0, 0]
+                if (features[-1].shape[3] > 2):
+                    padding[0:2] = [0, 1]
+                if (features[-1].shape[2] > 2):
+                    padding[2:4] = [0, 1]
+                with torch.jit.scope(f'{type(down).__name__}[{i}]'):
+                    with torch.jit.scope(f'{type(down[0]).__name__}[0]'):
+                        first = down[0](F.pad(features[-1], padding))
+                    with torch.jit.scope(f'{type(down[1]).__name__}[1]'):
+                        second = down[1](features[-1])
+                features.append(torch.cat([first, second], dim=1))
 
         output = [features[-1]]
-        for i in reversed(range(0, len(features) - 1)):
-            up = F.interpolate(output[-1], size=features[i].size()[2:], mode=self.interpolation_mode)
-            output.append(self.up_conv[i](up) + features[i])
+        with torch.jit.scope(f'{type(self.up_conv).__name__}[up_conv]'):
+            for i in reversed(range(0, len(features) - 1)):
+                up = F.interpolate(output[-1], size=features[i].size()[2:], mode=self.interpolation_mode)
+                with torch.jit.scope(f'{type(self.up_conv[i]).__name__}[{i}]'):
+                    output.append(self.up_conv[i](up) + features[i])
 
         output = list(reversed(output))
 
