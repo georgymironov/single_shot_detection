@@ -1,6 +1,7 @@
 import logging
 import math
 import random
+from itertools import chain
 
 import torch
 import torch.nn as nn
@@ -23,23 +24,16 @@ class Critetion(object):
     def __init__(self, trace_inspector, include_paths=None):
         self.trace_inspector = trace_inspector
         self.model = trace_inspector.model
-        self.modules = {name: module for name, module in self.model.named_modules() if isinstance(module, nn.Conv2d)}
-        self.connected = {k: v for k, v in trace_inspector.connected.items() if k in self.modules}
 
-        if not include_paths:
-            include_paths = []
-
-        self.include_paths = include_paths
-        self.filtered_modules = dict(filter(self._include, self.modules.items()))
-
-    def _include(self, item):
-        name, _ = item
-        return any(name.startswith(p) for p in self.include_paths)
+        self.included_modules = {name: module for name, module in self.model.named_modules()
+                                 if isinstance(module, nn.Conv2d) and (include_paths is None or any(name.startswith(p) for p in include_paths))}
+        self.connected = {k: v for k, v in trace_inspector.connected.items() if k in self.included_modules}
+        self.modules = {name: module for name, module in self.model.named_modules() if name in set(chain(*self.connected.values()))}
 
     def _share_connected(self, weights):
         weights = {
             name: torch.max(torch.cat([weights[x] for x in self.connected[name]], dim=1), dim=1)[0]
-            for name in weights.keys()
+            for name in self.included_modules.keys()
         }
         processed = set()
         for name in list(weights.keys()):
@@ -51,10 +45,10 @@ class Critetion(object):
 
     def _get_path_by_weights(self, weights, num):
         weights = self._share_connected(weights)
-        modules = {name: self.filtered_modules[name] for name in weights.keys()}
+        modules = {name: self.included_modules[name] for name in weights.keys()}
 
         for name, weight in weights.items():
-            assert self.filtered_modules[name].weight.size(0) == weight.size(0)
+            assert self.included_modules[name].weight.size(0) == weight.size(0)
 
         weights = torch.cat(list(weights.values()))
         _, indexes = torch.topk(weights, num, largest=False)
@@ -67,9 +61,9 @@ class Critetion(object):
 
 class RandomSampling(Critetion):
     def get_path(self, num=1):
-        total_channels = sum(x.out_channels for x in self.filtered_modules.values())
+        total_channels = sum(x.out_channels for x in self.included_modules.values())
         indexes = [random.randint(0, total_channels) for _ in range(num)]
-        return _get_paths(self.filtered_modules, indexes)
+        return _get_paths(self.included_modules, indexes)
 
 class MinL1Norm(Critetion):
     def get_path(self, num=1):
@@ -77,7 +71,7 @@ class MinL1Norm(Critetion):
             name: module.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1)
                 if module.out_channels > num
                 else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
-            for name, module in self.filtered_modules.items()
+            for name, module in self.modules.items()
         }
         return self._get_path_by_weights(norm, num)
 
@@ -87,11 +81,11 @@ class MinL2Norm(Critetion):
             name: module.weight.pow(2).sum(dim=(1, 2, 3)).sqrt().unsqueeze(1)
                 if module.out_channels > num
                 else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
-            for name, module in self.filtered_modules.items()
+            for name, module in self.modules.items()
         }
         return self._get_path_by_weights(norm, num)
 
-class _hook:
+class _mean_activation_hook:
     def __init__(self, mean_activation):
         self.num_steps = 0
         self.mean_activation = mean_activation
@@ -107,7 +101,7 @@ class MinActivation(Critetion):
         super(MinActivation, self).__init__(*args, **kwargs)
 
         self.activation_map = {}
-        for name in self.filtered_modules.keys():
+        for name in self.included_modules.keys():
             activations = set(self.trace_inspector.get_descendent_of_type(name,
                                                                           types=self.trace_inspector.activation_types,
                                                                           stop_on=['onnx::Conv']))
@@ -122,14 +116,14 @@ class MinActivation(Critetion):
             if name in self.activation_map:
                 conv = self.modules[self.activation_map[name]]
                 conv.register_buffer('mean_activation', torch.zeros((conv.out_channels,), dtype=conv.weight.dtype, device=conv.weight.device))
-                module.register_forward_hook(_hook(conv.mean_activation))
+                module.register_forward_hook(_mean_activation_hook(conv.mean_activation))
 
     def get_path(self, num=1):
         activation = {
             name: module.mean_activation.unsqueeze(1)
                 if module.out_channels > num
                 else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
-            for name, module in self.filtered_modules.items()
+            for name, module in self.modules.items()
             if hasattr(module, 'mean_activation') and module.mean_activation.sum().ne(0)
         }
 
