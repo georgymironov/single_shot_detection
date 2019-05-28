@@ -89,6 +89,25 @@ class TraceInspector(object):
                            if len(list(x.outputs())) == 1 and x.output().unique() not in self.ignore}
 
         self.affected = {k: list(self._get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
+        self.concat_groups = [list(self._get_concatenation_groups(x)) for x in graph.nodes() if x.kind() == 'onnx::Concat' and x['axis'] == 1]
+
+    def _get_concatenation_groups(self, node):
+        def _trace_multiple_inputs():
+            for inp in node.inputs():
+                if inp.unique() in self.nodes:
+                    yield from self._get_concatenation_groups(self.nodes[inp.unique()])
+
+        def _trace_first_input():
+            inp = next(node.inputs())
+            if inp.unique() in self.nodes:
+                yield from self._get_concatenation_groups(self.nodes[inp.unique()])
+
+        if node.kind() == 'onnx::Conv':
+            yield _to_torch_path(node)
+        elif node.kind() in ['onnx::Add', 'onnx::Concat']:
+            yield from _trace_multiple_inputs()
+        else:
+            yield from _trace_first_input()
 
     @property
     def connected(self):
