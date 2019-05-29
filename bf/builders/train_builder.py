@@ -42,6 +42,7 @@ def create_scheduler(scheduler_params, optimizer, state={}):
     else:
         last_epoch = state.get('global_step', -1) if run_scheduler_each_step else state.get('epoch', -1)
         logging.info(f'===> Setting scheduler "last_epoch" to {last_epoch}')
+        last_epoch = last_epoch + 1 if last_epoch >= 0 else last_epoch  # wtf
         scheduler = Scheduler(optimizer, last_epoch=last_epoch, **kwargs)
 
     return scheduler, run_scheduler_each_step, scheduler_metric
