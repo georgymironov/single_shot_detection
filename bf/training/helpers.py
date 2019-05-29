@@ -61,7 +61,7 @@ def init_checkpoint(args):
     else:
         checkpoint_dir = os.path.join(args.save_dir, f'{datetime.datetime.today():%F-%H%M%S}')
 
-    if not args.debug:
+    if not args.debug and 'train' in args.phases:
         os.path.exists(checkpoint_dir) or os.makedirs(checkpoint_dir)
         logging.info(f'>> Checkpoints will be saved to {checkpoint_dir}')
 
@@ -80,28 +80,24 @@ def get_default_argparser():
                         help='Folder where checkpoints are going to be saved')
     parser.add_argument('--checkpoint', type=str,
                         help='Path to restore checkpoint from. Overrides `save_dir`')
-    parser.add_argument('--video', type=str,
-                        help='Video or a folder (which will be searched recursively) for `test` phase')
     parser.add_argument('--debug', default=False, action='store_true',
-                        help='Debug mode. Disables saving checkpoints and logs')
+                        help='Debug mode. Disables saving checkpoints and logs to disk. Increases log level')
     parser.add_argument('--new-checkpoint', default=False, action='store_true',
-                        help='Force checkpoint to be stores to `save_dir`')
-    parser.add_argument('--tensorboard', default=False, action='store_true',
-                        help='Log to tensorboard')
+                        help='Force checkpoints to be stores to `save_dir`')
     parser.add_argument('--load-weights', default=False, action='store_true',
-                        help='Restore from weigths rather than full model when loading from checkpoint')
+                        help='Restore from weigths rather than from pickled model when loading checkpoint')
     parser.add_argument('--cpu', default=False, action='store_true',
                         help='Run model on CPU')
 
     distributed = parser.add_argument_group('distributed')
     distributed.add_argument('--distributed', default=False, action='store_true',
-                             help='Enable distributed training (only [single node - multi gpu] supported right now')
+                             help='Enable distributed training (only local machine [multi process - single gpu] supported right now)')
     distributed.add_argument('--nproc', type=int, default=torch.cuda.device_count(),
                              help='Number of jobs for distributed training (defaults to number of GPUs)')
     distributed.add_argument('--rank', type=int, default=0,
                              help='Rank of the current process')
     distributed.add_argument('--master-port', type=int, default=44444,
-                             help='Free local port for worker communication')
+                             help='Free local port for distributed workers communication')
     return parser
 
 def get_csv_log_file(args, log_dir):

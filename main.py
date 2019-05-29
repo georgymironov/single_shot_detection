@@ -122,6 +122,10 @@ if __name__ == '__main__':
     parser = helpers.get_default_argparser()
     parser.add_argument('--phases', nargs='+', default=['train', 'eval'], choices=['train', 'eval', 'test', 'export', 'export-mo', 'embed'],
                         help='One or multiple runtime phases')
+    parser.add_argument('--video', type=str,
+                        help='Video or a folder (which will be searched recursively) for `test` phase')
+    parser.add_argument('--tensorboard', default=False, action='store_true',
+                        help='Log to tensorboard')
     args = parser.parse_args()
 
     helpers.launch(args, main)
