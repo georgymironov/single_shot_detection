@@ -57,7 +57,7 @@ class Critetion(object):
                 continue
             connected = []
             for connection in self.connected[name]:
-                if connection in processed:
+                if connection in processed or connection not in weights:
                     continue
                 if connection in self.concat_groups:
                     group = self.concat_groups[connection]
@@ -67,7 +67,8 @@ class Critetion(object):
                 else:
                     connected.append(weights[connection])
                     processed.add(connection)
-            _weights[name] = torch.max(torch.cat(connected, dim=1), dim=1)[0]
+            if connected:
+                _weights[name] = torch.max(torch.cat(connected, dim=1), dim=1)[0]
 
         return _weights
 
