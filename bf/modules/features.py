@@ -47,6 +47,7 @@ class Features(nn.Module):
         sources, _ = get_multiple_outputs(self.base, dummy, self.out_layers)
         return [x.size(1) for x in sources]
 
+# ref: https://arxiv.org/abs/1612.03144
 class FeaturePyramid(Features):
     def __init__(self,
                  base,

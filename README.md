@@ -43,3 +43,4 @@ Some places that may be useful to look into:
 ### Inspired by
 - Tensorflow Object Detection API (https://github.com/tensorflow/models/tree/master/research/object_detection)
 - Gluon CV (https://github.com/dmlc/gluon-cv)
+- mmdetection (https://github.com/open-mmlab/mmdetection)

@@ -1,3 +1,6 @@
+# ref: https://arxiv.org/abs/1711.05101
+# ref: https://github.com/pytorch/pytorch/pull/3740
+
 import math
 
 import torch
