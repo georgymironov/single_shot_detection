@@ -144,7 +144,8 @@ class MinActivation(Critetion):
         for name, module in self.model.named_modules():
             if name in self.activation_map:
                 conv = self.modules[self.activation_map[name]]
-                conv.register_buffer('mean_activation', torch.zeros((conv.out_channels,), dtype=conv.weight.dtype, device=conv.weight.device))
+                if 'mean_activation' not in conv._buffers:
+                    conv.register_buffer('mean_activation', torch.zeros((conv.out_channels,), dtype=conv.weight.dtype, device=conv.weight.device))
                 module.register_forward_hook(_mean_activation_hook(conv.mean_activation))
 
     def get_path(self, num=1):
