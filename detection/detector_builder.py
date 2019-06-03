@@ -5,10 +5,8 @@ import torch.nn as nn
 from bf.modules import conv
 from bf.modules import features as _features
 from bf.utils.misc_utils import get_ctor
+from detection import anchor_generators as _anchor_generators
 from detection.detector import Detector
-
-import detection.retina_net
-import detection.ssd
 
 
 def build(base,
@@ -31,11 +29,11 @@ def build(base,
     num_scales = features.num_outputs + len(extra_layers)
     source_out_channels = features.get_out_channels()
 
-    anchor_generator = getattr(detection, anchor_generator_params['type']).anchor_generator
-    priors = anchor_generator.get_priors(**anchor_generator_params)
+    anchor_generator_builder = getattr(_anchor_generators, anchor_generator_params['type']).build_anchor_generators
+    anchor_generators = anchor_generator_builder(**anchor_generator_params)
 
-    assert num_scales == len(priors)
-    num_boxes = [x.num_boxes for x in priors]
+    assert num_scales == len(anchor_generators)
+    num_boxes = [x.num_boxes for x in anchor_generators]
 
     extras = get_extras(source_out_channels, use_depthwise=use_depthwise, **extras)
     predictor, heads = get_predictor(source_out_channels, num_boxes, num_classes, use_depthwise, **predictor)
@@ -46,7 +44,7 @@ def build(base,
                     heads,
                     source_layers,
                     num_classes=num_classes,
-                    priors=priors)
+                    anchor_generators=anchor_generators)
 
 def get_extras(source_out_channels,
                use_depthwise=False,

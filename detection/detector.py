@@ -90,11 +90,11 @@ class Predictor(nn.Module):
         return scores, locs, loc_sources
 
 class Detector(nn.Module):
-    def __init__(self, *args, num_classes, priors):
+    def __init__(self, *args, num_classes, anchor_generators):
         super(Detector, self).__init__()
         self.predictor = Predictor(*args)
         self.num_classes = num_classes
-        self.priors = priors
+        self.priors = anchor_generators
 
     def forward(self, img):
         with torch.jit.scope('Predictor[predictor]'):
@@ -107,7 +107,7 @@ class Detector(nn.Module):
             scores = scores.view(img.size(0), -1)
             return scores, locs
         else:
-            for loc_source, prior in zip(locs_sources, self.priors):
-                priors.append(prior.generate(img, loc_source).view(-1))
+            for loc_source, anchor_generator in zip(locs_sources, self.priors):
+                priors.append(anchor_generator.generate(img, loc_source).view(-1))
             priors = torch.cat(priors, dim=0).view(-1, 4)
             return scores, locs, priors

@@ -5,17 +5,18 @@ import math
 import torch
 
 from bf.utils.misc_utils import filter_kwargs
+from ._anchor_generator import _AnchorGenerator
 
 
 @filter_kwargs
-def get_priors(num_scales=6,
-               sizes=None,
-               min_scale=None,
-               max_scale=None,
-               aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
-               steps=None,
-               offsets=[0.5, 0.5],
-               num_branches=None):
+def build_anchor_generators(num_scales=6,
+                            sizes=None,
+                            min_scale=None,
+                            max_scale=None,
+                            aspect_ratios=[[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2,
+                            steps=None,
+                            offsets=[0.5, 0.5],
+                            num_branches=None):
     assert sizes is not None or (min_scale is not None and max_scale is not None)
 
     if steps is None:
@@ -36,7 +37,7 @@ def get_priors(num_scales=6,
 
     assert len(aspect_ratios) == num_scales
 
-    priors = []
+    anchor_generators = []
     for i, (ratios, step, num_branches) in enumerate(zip(aspect_ratios, steps, num_branches)):
         if scales is not None:
             kwargs = {
@@ -48,10 +49,10 @@ def get_priors(num_scales=6,
                 'min_size': sizes[i],
                 'max_size': sizes[i + 1]
             }
-        priors.append(AnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
-    return priors
+        anchor_generators.append(SsdAnchorGenerator(ratios, step=step, num_branches=num_branches, **kwargs))
+    return anchor_generators
 
-class AnchorGenerator(object):
+class SsdAnchorGenerator(_AnchorGenerator):
     def __init__(self,
                  aspect_ratios,
                  min_scale=None,
@@ -63,7 +64,7 @@ class AnchorGenerator(object):
                  num_branches=1,
                  flip=True,
                  clip=False):
-        super(AnchorGenerator, self).__init__()
+        super(SsdAnchorGenerator, self).__init__()
 
         if max_scale is not None and min_scale is None:
             raise ValueError('"max_scale" should be provided along with "min_scale"')
@@ -85,7 +86,7 @@ class AnchorGenerator(object):
 
         self.aspect_ratios = []
         for ar in aspect_ratios:
-            assert ar >= 1.0
+            assert ar >= 1.0 or not flip
             self.aspect_ratios.append(ar)
             if ar > 1.0 and flip:
                 self.aspect_ratios.append(1.0 / ar)
@@ -103,10 +104,9 @@ class AnchorGenerator(object):
             self.scales = torch.linspace(self.min_scale, self.max_scale, self.num_branches + 1).unsqueeze(1)
 
     @functools.lru_cache()
-    def _generate_anchors(self, img_size, feature_map_size):
+    def _generate_anchors(self, img_size, feature_map_size, device='cpu'):
         img_w, img_h = img_size
         layer_w, layer_h = feature_map_size
-        device = 'cpu'
 
         boxes = torch.empty((layer_h, layer_w, self.num_boxes, 4), dtype=torch.float32, device=device)
 
@@ -149,18 +149,3 @@ class AnchorGenerator(object):
             boxes[..., [1, 3]].clamp_(0, img_h - 1)
 
         return boxes
-
-    def generate(self, img, feature_map):
-        """
-        Args:
-            img: torch.tensor(:shape [Batch, Channels, Height, Width])
-            feature_map: torch.tensor(:shape [Batch, Channels, Height, Width])
-        Returns:
-            priors: torch.tensor(:shape [Height, Width, AspectRatios, 4])
-        """
-        img_size = img.size(3), img.size(2)
-        feature_map_size = feature_map.size(3), feature_map.size(2)
-
-        anchors = self._generate_anchors(img_size, feature_map_size)
-
-        return anchors
