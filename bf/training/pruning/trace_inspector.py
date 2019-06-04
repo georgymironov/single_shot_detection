@@ -37,6 +37,11 @@ def _is_depthwise_conv_onnx(onnx_node):
         return False
     return next(onnx_node.inputs()).type().sizes()[1] == onnx_node.output().type().sizes()[1] == onnx_node['group']
 
+def _make_affected_tuple(node, channel_type, index):
+    if index is None:
+        return _to_torch_path(node), channel_type
+    return _to_torch_path(node), channel_type, index
+
 
 class TraceInspector(object):
     _affected_in_node_types = ['onnx::Conv', 'onnx::BatchNormalization']
@@ -89,7 +94,33 @@ class TraceInspector(object):
                            if len(list(x.outputs())) == 1 and x.output().unique() not in self.ignore}
 
         self.affected = {k: list(self._get_affected_nodes(v, 'out')) for k, v in self.node_paths.items()}
-        self.concat_groups = [list(self._get_concatenation_groups(x)) for x in graph.nodes() if x.kind() == 'onnx::Concat' and x['axis'] == 1]
+
+        concat_groups = [(list(self._get_concatenation_groups(x)), x.output().unique())
+                         for x in graph.nodes()
+                         if x.kind() == 'onnx::Concat' and x['axis'] == 1]
+
+        self.concat_groups = [[_to_torch_path(self.nodes[conv]) for conv in group] for group, _ in concat_groups]
+
+        self._concat_group_offset = {}
+        self._concat_group_len = {}
+        for group, concat in concat_groups:
+            cumsum = 0
+            for conv in group:
+                predecessors = list(self._trace_till(conv, concat))
+                assert len(predecessors) == 1
+                predecessor = predecessors[0]
+
+                self._concat_group_offset[predecessor] = cumsum
+                self._concat_group_len[predecessor] = self.nodes[conv].output().type().sizes()[1]
+                cumsum += self.nodes[conv].output().type().sizes()[1]
+
+    def _trace_till(self, start, end):
+        for node in self.output_nodes[start]:
+            for output in node.outputs():
+                if output.unique() == end:
+                    yield start
+                else:
+                    yield from self._trace_till(output.unique(), end)
 
     def _get_concatenation_groups(self, node):
         def _trace_multiple_inputs():
@@ -103,7 +134,7 @@ class TraceInspector(object):
                 yield from self._get_concatenation_groups(self.nodes[inp.unique()])
 
         if node.kind() == 'onnx::Conv':
-            yield _to_torch_path(node)
+            yield node.output().unique()
         elif node.kind() in ['onnx::Add', 'onnx::Concat']:
             yield from _trace_multiple_inputs()
         else:
@@ -133,7 +164,18 @@ class TraceInspector(object):
                 for output in output_node.outputs():
                     yield from self._get_descendent_of_type(output.unique(), types, stop_on)
 
-    def _get_affected_nodes(self, unique, type_='out', memo=None):
+    def _get_next_index(self, unique, index, channel_type):
+        if index is None:
+            return None
+        if unique not in self._concat_group_offset:
+            return index
+        if channel_type == 'in':
+            return self._concat_group_offset[unique] + index
+        if 0 <= index - self._concat_group_offset[unique] < self._concat_group_len[unique]:
+            return index - self._concat_group_offset[unique]
+        return -1
+
+    def _get_affected_nodes(self, unique, channel_type, memo=None, index=None):
         if unique in self.ignore:
             return
 
@@ -141,40 +183,49 @@ class TraceInspector(object):
             memo = set()
 
         node = self.nodes[unique]
-        affected = _to_torch_path(node), type_
+        affected = _make_affected_tuple(node, channel_type, index)
 
         if affected in memo:
             return
 
-        def _get_affected_in_nodes():
+        def _trace_down():
+            next_index = self._get_next_index(unique, index, 'in')
+            if next_index == -1:
+                return
             for output_node in self.output_nodes[unique]:
                 for output in output_node.outputs():
-                    yield from self._get_affected_nodes(output.unique(), 'in', memo)
+                    yield from self._get_affected_nodes(output.unique(), 'in', memo, next_index)
 
-        def _get_affected_out_nodes():
+        def _trace_up():
             for inp in node.inputs():
                 if inp.unique() in self.nodes:
-                    yield from self._get_affected_nodes(inp.unique(), 'out', memo)
+                    next_index = self._get_next_index(inp.unique(), index, 'out')
+                    if next_index == -1:
+                        continue
+                    yield from self._get_affected_nodes(inp.unique(), 'out', memo, next_index)
 
         if _is_depthwise_conv_onnx(node):
-            yield _to_torch_path(node), 'out'
-            memo.add((_to_torch_path(node), 'in'))
-            memo.add((_to_torch_path(node), 'out'))
-            yield from _get_affected_in_nodes()
-            yield from _get_affected_out_nodes()
-        elif type_ == 'in':
-            if node.kind() in self._affected_in_node_types and type_ == 'in':
+            yield _make_affected_tuple(node, 'out', index)
+            memo.add(_make_affected_tuple(node, 'in', index))
+            memo.add(_make_affected_tuple(node, 'out', index))
+            yield from _trace_down()
+            yield from _trace_up()
+        elif channel_type == 'in':
+            if node.kind() in self._affected_in_node_types:
                 yield affected
                 memo.add(affected)
             if node.kind() != 'onnx::Conv':
-                yield from _get_affected_in_nodes()
+                yield from _trace_down()
             if node.kind() == 'onnx::Add':
-                yield from _get_affected_out_nodes()
-        else:
-            if node.kind() in self._affected_out_node_types and type_ == 'out':
+                yield from _trace_up()
+        elif channel_type == 'out':
+            if node.kind() in self._affected_out_node_types:
                 yield affected
                 memo.add(affected)
             if node.kind() == 'onnx::Conv':
-                yield from _get_affected_in_nodes()
+                yield from _trace_down()
             else:
-                yield from _get_affected_out_nodes()
+                yield from _trace_up()
+
+    def get_affected_nodes(self, path, index):
+        return self._get_affected_nodes(self.node_paths[path], 'out', index=index)

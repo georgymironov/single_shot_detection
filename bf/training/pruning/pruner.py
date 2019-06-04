@@ -4,7 +4,8 @@ import logging
 import torch
 import torch.nn as nn
 
-from . import criterions, trace_inspector
+from . import criterions
+from .trace_inspector import TraceInspector
 from bf.utils import torch_utils
 
 
@@ -64,9 +65,7 @@ class Pruner(object):
         self.num = num
         self.model = model
         self.modules = dict(torch_utils.get_leaf_modules(model))
-
-        self.trace_inspector = trace_inspector.TraceInspector(model)
-
+        self.trace_inspector = TraceInspector(model)
         self.criterion = getattr(criterions, criterion)(self.trace_inspector, include_paths)
 
     def prune(self, paths=None):
@@ -83,7 +82,7 @@ class Pruner(object):
         for path, index in paths:
             logging.info(f'{path} #{index}')
             logging.debug('-' * 25)
-            for path, channel_type in self.trace_inspector.affected[path]:
+            for path, channel_type, index in self.trace_inspector.get_affected_nodes(path, index):
                 grouped_paths[(path, channel_type)].add(index)
                 logging.debug(f'{path} #{index} {channel_type}')
             logging.debug('-' * 25)
