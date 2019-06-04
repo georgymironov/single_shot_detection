@@ -33,7 +33,7 @@ def init_file_logger(args, log_dir):
         file_handler = logging.FileHandler(log_path)
         logging.getLogger().addHandler(file_handler)
 
-def init_random_state(args, cfg):
+def set_random_state(args, cfg):
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -51,11 +51,16 @@ def set_device(args, cfg):
                                 world_size=args.nproc,
                                 rank=args.rank)
         num_gpus = 1
-    else:
-        device = 'cuda:0' if use_cuda else 'cpu'
+    elif use_cuda:
+        device = 'cuda:0'
         num_gpus = torch.cuda.device_count()
+    else:
+        device = 'cpu'
+        num_gpus = 0
 
     if use_cuda:
+        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
         cfg.update({'num_gpus': num_gpus})
 
     return device, use_cuda

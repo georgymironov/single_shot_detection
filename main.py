@@ -19,7 +19,7 @@ def main(args):
     env.init_file_logger(args, checkpoint_dir)
     cfg = helpers.load_config(args)
 
-    env.init_random_state(args, cfg)
+    env.set_random_state(args, cfg)
     device, use_cuda = env.set_device(args, cfg)
 
     augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, 'box')
