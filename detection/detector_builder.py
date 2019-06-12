@@ -4,7 +4,6 @@ import torch.nn as nn
 
 from bf.modules import conv
 from bf.modules import features as _features
-from bf.utils.misc_utils import get_ctor
 from detection import anchor_generators as _anchor_generators
 from detection.detector import Detector
 
@@ -23,7 +22,7 @@ def build(base,
     # ToDo: remove
     source_layers = features['out_layers']
 
-    Features = get_ctor(_features, features['name'])
+    Features = getattr(_features, features['name'])
     features = Features(base, use_depthwise=use_depthwise, **features)
 
     num_scales = features.num_outputs + len(extra_layers)

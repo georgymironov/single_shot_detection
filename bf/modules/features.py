@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from bf.modules import conv
-from bf.utils.misc_utils import update_existing
+from bf.utils.misc_utils import update_existing, filter_kwargs
 from bf.utils.torch_utils import get_multiple_outputs
 
 
@@ -16,6 +16,7 @@ def _init_layer(layer, initializer_):
         layer.bias is not None and nn.init.zeros_(layer.bias)
 
 class Features(nn.Module):
+    @filter_kwargs
     def __init__(self,
                  base,
                  out_layers,
