@@ -4,5 +4,5 @@ lxml
 networkx
 numpy
 torch>=1.1.0
-torchvision
+torchvision>=0.3.0
 tqdm
