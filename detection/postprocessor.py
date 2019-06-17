@@ -44,13 +44,12 @@ class Postprocessor(object):
             num_classes = num_classes - 1
             b_scores = b_scores[..., 1:]
 
-        b_scores = b_scores.cpu()
-
         b_boxes = b_boxes.view(batch_size, num_priors, 4)
         b_boxes = b_boxes.to(priors.device)
         b_boxes = self.box_coder.decode_box(b_boxes, priors, inplace=False)
         b_boxes = box_utils.to_corners(b_boxes)
-        b_boxes = b_boxes.cpu()
+
+        b_scores = b_scores.to(b_boxes.device)
 
         processed = []
         for scores, boxes in zip(b_scores, b_boxes):

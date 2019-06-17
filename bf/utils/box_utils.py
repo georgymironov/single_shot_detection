@@ -2,6 +2,7 @@ import functools
 
 import numpy as np
 import torch
+import torchvision
 
 
 def to_torch(func):
@@ -95,23 +96,6 @@ def jaccard(a, b, cartesian=True):
 
     return intersection_area / (area_a + area_b - intersection_area)
 
-def _greedy_nms(boxes, scores, overlap_threshold):
-    _, indexes = scores.sort(descending=True)
-    box_area = area(boxes)
-    picked = []
-
-    while indexes.size(0) > 0:
-        i = indexes[0]
-        picked.append(i)
-        indexes = indexes[1:]
-
-        intersection_area = area(intersection(boxes[i].unsqueeze(0), boxes[indexes]).squeeze_(0))
-        iou = intersection_area / (box_area[i] + box_area[indexes] - intersection_area)
-        indexes = indexes[iou < overlap_threshold]
-
-    picked = torch.tensor(picked, dtype=torch.long)
-    return (boxes[picked], scores[picked]), picked
-
 def _soft_nms(boxes, scores, score_threshold, sigma=0.5):
     scores_copy = scores.clone()
     mask = scores > score_threshold
@@ -160,4 +144,5 @@ def nms(boxes, scores, overlap_threshold, score_threshold, max_per_class=None, s
     if soft:
         return _soft_nms(boxes, scores, score_threshold, sigma)
     else:
-        return _greedy_nms(boxes, scores, overlap_threshold)
+        picked = torchvision.ops.nms(boxes, scores, overlap_threshold)
+        return (boxes[picked], scores[picked]), picked

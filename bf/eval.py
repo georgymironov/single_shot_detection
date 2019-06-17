@@ -35,13 +35,14 @@ class Evaluator(object):
             img, ground_truth = batch
 
             with torch.no_grad():
-                _, prediction, state = self.step_fn(step, 'eval', batch, state)
+                _, batch_prediction, state = self.step_fn(step, 'eval', batch, state)
 
             ground_truths += list(ground_truth)
 
-            for i, p in enumerate(prediction):
+            for i, prediction in enumerate(batch_prediction):
                 index = step * dataloader.batch_size + i
-                predictions.append(torch.cat([torch.full((p.size(0), 1), index, dtype=torch.float32), p], dim=1))
+                index_tensor = torch.full((prediction.size(0), 1), index, dtype=torch.float32, device=prediction.device)
+                predictions.append(torch.cat([index_tensor, prediction], dim=1))
 
             self.event_emitter.emit('step_end', phase='eval', step=step, state=state)
 
@@ -51,6 +52,7 @@ class Evaluator(object):
         logging.info(f'\n[eval] finished in {elapsed//60:.0f}m {elapsed%60:.0f}s')
 
         predictions = torch.cat(predictions, dim=0)
+        predictions = predictions.cpu()
 
         for name, metric in self.metrics.items():
             state[name] = metric(predictions, ground_truths)
