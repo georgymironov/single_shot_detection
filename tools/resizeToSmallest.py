@@ -43,4 +43,4 @@ if __name__ == '__main__':
     width = int(width)
     height = int(height)
     imgs = glob.glob(f'{path}/**/*.jpg', recursive=True)
-    r = Parallel(n_jobs=8, verbose=10)(delayed(resize)(x, width, height) for x in imgs)
+    r = Parallel(n_jobs=-1, verbose=10)(delayed(resize)(x, width, height) for x in imgs)
