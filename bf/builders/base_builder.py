@@ -24,6 +24,22 @@ class _resnet_wrapper(nn.Module):
     def forward(self, x):
         return self.features(x)
 
+class _shufflenet_v2_wrapper(nn.Module):
+    def __init__(self, model):
+        super(_shufflenet_v2_wrapper, self).__init__()
+
+        self.features = nn.Sequential(
+            model.conv1,
+            model.maxpool,
+            model.stage2,
+            model.stage3,
+            model.stage4,
+            model.conv5,
+        )
+
+    def forward(self, x):
+        return self.features(x)
+
 def create_base(model_params):
     Base = getattr(detection_base, model_params['base']['name'])
     kwargs = {}
@@ -38,8 +54,11 @@ def create_base(model_params):
 
     base = Base(**kwargs)
 
-    if weight == 'torchvision' and model_params['base']['name'].startswith('resnet'):
-        base = _resnet_wrapper(base)
+    if weight == 'torchvision':
+        if model_params['base']['name'].startswith('resnet'):
+            base = _resnet_wrapper(base)
+        if model_params['base']['name'].startswith('shufflenet_v2'):
+            base = _shufflenet_v2_wrapper(base)
 
     if weight == 'keras':
         base.init_from_keras()
