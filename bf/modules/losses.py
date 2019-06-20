@@ -41,9 +41,9 @@ class SigmoidFocalLoss(nn.Module):
         loss[mask] = (alpha_weight * pb.pow(self.gamma) * cross_entropy).sum(dim=-1)
 
         if self.reduction == 'mean':
-            loss.mean_()
+            loss = loss.mean()
         elif self.reduction == 'sum':
-            loss.sum_()
+            loss = loss.sum()
 
         return loss
 
@@ -75,8 +75,8 @@ class SoftmaxFocalLoss(nn.Module):
             loss.mul_(alpha)
 
         if self.reduction == 'mean':
-            loss.mean_()
+            loss = loss.mean()
         elif self.reduction == 'sum':
-            loss.sum_()
+            loss = loss.sum()
 
         return loss
