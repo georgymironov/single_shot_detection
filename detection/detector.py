@@ -51,32 +51,32 @@ class Predictor(nn.Module):
                     x = layer(x)
                 sources.append(x)
 
-        class_sources = loc_sources = sources
+        score_sources = loc_sources = sources
 
         # backward compatibility
         # ToDo: remove
         if hasattr(self, 'predictor_conv'):
-            for class_conv, loc_conv, class_norm, loc_norm in zip(self.predictor_conv['class'],
+            for score_conv, loc_conv, score_norm, loc_norm in zip(self.predictor_conv['score'],
                                                                   self.predictor_conv['loc'],
-                                                                  self.predictor_norm['class'],
+                                                                  self.predictor_norm['score'],
                                                                   self.predictor_norm['loc']):
-                class_sources = map(class_conv, class_sources)
+                score_sources = map(score_conv, score_sources)
                 loc_sources = map(loc_conv, loc_sources)
 
-                class_sources = map(self.predictor_activation, class_sources)
+                score_sources = map(self.predictor_activation, score_sources)
                 loc_sources = map(self.predictor_activation, loc_sources)
 
-                class_sources = [norm(x) for norm, x in zip(class_norm, class_sources)]
+                score_sources = [norm(x) for norm, x in zip(score_norm, score_sources)]
                 loc_sources = [norm(x) for norm, x in zip(loc_norm, loc_sources)]
 
-        for i, (head, class_source, loc_source) in enumerate(zip(self.heads, class_sources, loc_sources)):
+        for i, (head, score_source, loc_source) in enumerate(zip(self.heads, score_sources, loc_sources)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):
-                with torch.jit.scope(f'_item[class]'):
+                with torch.jit.scope(f'_item[score]'):
                     scores.append(
-                        head['class'](class_source)
+                        head['score'](score_source)
                             .permute((0, 2, 3, 1))
                             .contiguous()
-                            .view(class_source.size(0), -1))
+                            .view(score_source.size(0), -1))
                 with torch.jit.scope(f'_item[loc]'):
                     locs.append(
                         head['loc'](loc_source)

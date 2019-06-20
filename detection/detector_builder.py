@@ -109,13 +109,13 @@ def get_predictor(source_out_channels,
                   batch_norm={},
                   activation={'name': 'ReLU', 'args': {'inplace': True}},
                   initializer={'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
-                  class_head_bias_init=0):
+                  score_head_bias_init=0):
     if num_layers > 0:
         assert len(set(source_out_channels)) == 1
 
     predictor = nn.ModuleDict()
     norms = nn.ModuleDict()
-    for head in ['class', 'loc']:
+    for head in ['score', 'loc']:
         in_channels = source_out_channels[0]
         layers = nn.ModuleList()
         norms[head] = nn.ModuleList()
@@ -151,18 +151,18 @@ def get_predictor(source_out_channels,
 
     predictor.apply(_init_predictor)
 
-    def _init_class_head(layer):
+    def _init_score_head(layer):
         initializer_(layer.weight)
-        nn.init.constant_(layer.bias, class_head_bias_init)
+        nn.init.constant_(layer.bias, score_head_bias_init)
 
     heads = nn.ModuleList()
     for in_channels, num_boxes in zip(out_channels, num_boxes):
-        class_head = nn.Conv2d(in_channels, num_boxes * num_classes, kernel_size=3, padding=1, bias=True)
+        score_head = nn.Conv2d(in_channels, num_boxes * num_classes, kernel_size=3, padding=1, bias=True)
         loc_head = nn.Conv2d(in_channels, num_boxes * 4, kernel_size=3, padding=1, bias=True)
 
-        class_head.apply(_init_class_head)
+        score_head.apply(_init_score_head)
         loc_head.apply(_init_predictor)
 
-        heads.append(nn.ModuleDict({'class': class_head, 'loc': loc_head}))
+        heads.append(nn.ModuleDict({'score': score_head, 'loc': loc_head}))
 
     return (predictor, activation_, norms), heads
