@@ -19,7 +19,7 @@ model = {
     'anchor_generator': {
         'type': 'ssd',
         'num_scales': 6,
-        'min_scale': 0.07,
+        'min_scale': 0.15,
         'max_scale': 1.05,
         'aspect_ratios': [[1.0, 2.0]] + [[1.0, 2.0, 3.0]] * 3 + [[1.0, 2.0]] * 2
     }
@@ -90,13 +90,14 @@ input_size = (512, 512)
 
 dataset = {
     'train': {
-        'name': 'Coco',
-        'root': '{HOME}/documents/coco2017'
+        'name': 'Voc',
+        'root': '{HOME}/documents/pascal-voc',
+        'image_sets': [(2007, 'trainval'), (2012, 'trainval')]
     },
     'eval': {
-        'name': 'Coco',
-        'root': '{HOME}/documents/coco2017',
-        'val': True
+        'name': 'Voc',
+        'root': '{HOME}/documents/pascal-voc',
+        'image_sets': [(2007, 'test')]
     }
 }
 
