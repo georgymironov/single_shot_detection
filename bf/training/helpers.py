@@ -51,11 +51,11 @@ def init_checkpoint(args):
             if args.load_weights:
                 del state['model']
             elif 'model_dict' in state:
+                for module in state['model'].modules():
+                    module._backward_hooks.clear()
+                    module._forward_hooks.clear()
+                    module._forward_pre_hooks.clear()
                 del state['model_dict']
-            for module in state['model'].modules():
-                module._backward_hooks.clear()
-                module._forward_hooks.clear()
-                module._forward_pre_hooks.clear()
         torch.cuda.empty_cache()
     else:
         state = {}

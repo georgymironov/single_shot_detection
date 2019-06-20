@@ -16,6 +16,7 @@ from detection.detector_wrapper import DetectorWrapper
 from detection.losses.mutibox_loss import MultiboxLoss
 from detection.postprocessor import Postprocessor
 from detection.target_assigner import TargetAssigner
+from detection.utils import model_fixer
 
 
 def init(device,
@@ -52,13 +53,12 @@ def init(device,
             logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
             state_dict = detector.state_dict()
             state_dict.update(torch.load(model_params['detector']['weight'], map_location='cpu'))
+            state_dict = model_fixer.fix_weights(state_dict)
             detector.load_state_dict(state_dict)
 
         if 'model_dict' in state:
             logging.info('===> Loading model weights from checkpoint')
-            model_dict = OrderedDict()
-            for k, v in state['model_dict'].items():
-                model_dict[k.replace('predictor.module.', 'predictor.')] = v
+            model_dict = model_fixer.fix_weights(state['model_dict'])
             detector.load_state_dict(model_dict)
             del state['model_dict']
 
