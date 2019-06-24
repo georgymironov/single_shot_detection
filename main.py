@@ -5,7 +5,7 @@ from bf.builders import train_builder, data_builder
 from bf.training import callbacks, env, helpers
 from bf.training.pruning.pruner import Pruner
 from bf.utils.video_viewer import VideoViewer
-from bf.utils import mo_exporter, onnx_exporter
+from bf.utils import mo_exporter, onnx_exporter, jit_exporter
 
 from detection.init import init as init_detection
 from detection.metrics.mean_average_precision import mean_average_precision
@@ -112,15 +112,19 @@ def main(args):
         viewer.run()
 
     if 'export' in args.phases:
-        onnx_exporter.export(detector.model, cfg.input_size, 'model.onnx')
+        onnx_exporter.export(detector.model, cfg.input_size, 'exported/model.onnx')
 
     if 'export-mo' in args.phases:
         mo_exporter.export(detector.model, cfg, 'model', folder='exported', postprocess=mo_add_output.add_output)
 
+    if 'export-torch' in args.phases:
+        jit_exporter.export(detector.model, cfg.input_size, 'exported/model.pt')
+
 
 if __name__ == '__main__':
     parser = helpers.get_default_argparser()
-    parser.add_argument('--phases', nargs='+', default=['train', 'eval'], choices=['train', 'eval', 'test', 'export', 'export-mo', 'embed'],
+    parser.add_argument('--phases', nargs='+', default=['train', 'eval'],
+                        choices=['train', 'eval', 'test', 'export', 'export-mo', 'export-torch', 'embed'],
                         help='One or multiple runtime phases')
     parser.add_argument('--video', type=str,
                         help='Video or a folder (which will be searched recursively) for `test` phase')

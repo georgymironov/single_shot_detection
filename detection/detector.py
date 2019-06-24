@@ -101,6 +101,8 @@ class Detector(nn.Module):
             scores, locs, locs_sources = self.predictor.forward(img)
         priors = []
 
+        if bf.utils.jit_exporter.is_exporting():
+            return scores, locs, tuple(locs_sources)
         if bf.utils.onnx_exporter.is_exporting():
             scores = scores.view(img.size(0), -1, self.num_classes)
             scores = F.softmax(scores, dim=-1)
