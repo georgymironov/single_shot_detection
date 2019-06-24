@@ -114,7 +114,6 @@ def add_output(model_file, config):
     g.add_edges_from((x['from-layer'], x['to-layer']) for x in edges)
 
     inp = [x[0] for x in g.pred.items() if len(x[1]) == 0]
-    assert len(inp) == 1
     inp = inp[0]
 
     outputs = [x[0] for x in g.succ.items() if len(x[1]) == 0]
