@@ -10,8 +10,7 @@ class Predictor(nn.Module):
                  features,
                  extras,
                  predictor,
-                 heads,
-                 source_layers):
+                 heads):
         super(Predictor, self).__init__()
 
         self.features = features
@@ -20,7 +19,6 @@ class Predictor(nn.Module):
         self.predictor_activation = predictor[1]
         self.predictor_norm = predictor[2]
         self.heads = heads
-        self.source_layers = source_layers
 
     def forward(self, img):
         """
@@ -35,15 +33,8 @@ class Predictor(nn.Module):
         scores = []
         locs = []
 
-        # backward compatibility
-        # ToDo: remove
-        if isinstance(self.features, nn.Sequential):
-            from bf.utils.torch_utils import get_multiple_outputs
-            with torch.jit.scope('Sequential[features]'):
-                sources, x = get_multiple_outputs(self.features, img, self.source_layers)
-        else:
-            with torch.jit.scope(f'{type(self.features).__name__}[features]'):
-                sources, x = self.features(img)
+        with torch.jit.scope(f'{type(self.features).__name__}[features]'):
+            sources, x = self.features(img)
 
         with torch.jit.scope('Sequential[extras]'):
             for i, layer in enumerate(self.extras):
@@ -53,21 +44,18 @@ class Predictor(nn.Module):
 
         score_sources = loc_sources = sources
 
-        # backward compatibility
-        # ToDo: remove
-        if hasattr(self, 'predictor_conv'):
-            for score_conv, loc_conv, score_norm, loc_norm in zip(self.predictor_conv['score'],
-                                                                  self.predictor_conv['loc'],
-                                                                  self.predictor_norm['score'],
-                                                                  self.predictor_norm['loc']):
-                score_sources = map(score_conv, score_sources)
-                loc_sources = map(loc_conv, loc_sources)
+        for score_conv, loc_conv, score_norm, loc_norm in zip(self.predictor_conv['score'],
+                                                              self.predictor_conv['loc'],
+                                                              self.predictor_norm['score'],
+                                                              self.predictor_norm['loc']):
+            score_sources = map(score_conv, score_sources)
+            loc_sources = map(loc_conv, loc_sources)
 
-                score_sources = map(self.predictor_activation, score_sources)
-                loc_sources = map(self.predictor_activation, loc_sources)
+            score_sources = map(self.predictor_activation, score_sources)
+            loc_sources = map(self.predictor_activation, loc_sources)
 
-                score_sources = [norm(x) for norm, x in zip(score_norm, score_sources)]
-                loc_sources = [norm(x) for norm, x in zip(loc_norm, loc_sources)]
+            score_sources = [norm(x) for norm, x in zip(score_norm, score_sources)]
+            loc_sources = [norm(x) for norm, x in zip(loc_norm, loc_sources)]
 
         for i, (head, score_source, loc_source) in enumerate(zip(self.heads, score_sources, loc_sources)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):

@@ -18,10 +18,6 @@ def build(base,
 
     extra_layers = extras.get('layers', [])
 
-    # backward compatibility
-    # ToDo: remove
-    source_layers = features['out_layers']
-
     Features = getattr(_features, features['name'])
     features = Features(base, use_depthwise=use_depthwise, **features)
 
@@ -41,7 +37,6 @@ def build(base,
                     extras,
                     predictor,
                     heads,
-                    source_layers,
                     num_classes=num_classes,
                     anchor_generators=anchor_generators)
 
