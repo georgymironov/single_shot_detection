@@ -75,7 +75,20 @@ class Predictor(nn.Module):
         scores = torch.cat(scores, dim=1)
         locs = torch.cat(locs, dim=1)
 
-        return scores, locs, loc_sources
+        if bf.utils.onnx_exporter.is_exporting():
+            return scores, locs
+        else:
+            return scores, locs, loc_sources
+
+class _ScriptDetector(torch.jit.ScriptModule):
+    def __init__(self, traced_predictor, anchors):
+        super(_ScriptDetector, self).__init__()
+        self.anchors = nn.Parameter(anchors)
+        self.traced_predictor = traced_predictor
+
+    @torch.jit.script_method
+    def forward(self, x):
+        return (*self.traced_predictor(x), self.anchors)
 
 class Detector(nn.Module):
     def __init__(self, *args, num_classes, anchor_generators):
@@ -84,20 +97,30 @@ class Detector(nn.Module):
         self.num_classes = num_classes
         self.priors = anchor_generators
 
+    def jit(self, x):
+        scores, locs, anchors = self.forward(x)
+
+        with bf.utils.onnx_exporter.for_export():
+            traced_predictor = torch.jit.trace(self.predictor, x)
+
+        return _ScriptDetector(traced_predictor, anchors)
+
+    def generate_anchors(self, img, sources):
+        anchors = []
+        for loc_source, anchor_generator in zip(sources, self.priors):
+            anchors.append(anchor_generator.generate(img, loc_source).view(-1))
+        return torch.cat(anchors, dim=0).view(-1, 4)
+
     def forward(self, img):
         with torch.jit.scope('Predictor[predictor]'):
-            scores, locs, locs_sources = self.predictor.forward(img)
-        priors = []
+            output = self.predictor.forward(img)
 
-        if bf.utils.jit_exporter.is_exporting():
-            return scores, locs, tuple(locs_sources)
         if bf.utils.onnx_exporter.is_exporting():
+            scores, locs = output
             scores = scores.view(img.size(0), -1, self.num_classes)
             scores = F.softmax(scores, dim=-1)
             scores = scores.view(img.size(0), -1)
             return scores, locs
         else:
-            for loc_source, anchor_generator in zip(locs_sources, self.priors):
-                priors.append(anchor_generator.generate(img, loc_source).view(-1))
-            priors = torch.cat(priors, dim=0).view(-1, 4)
-            return scores, locs, priors
+            scores, locs, locs_sources = output
+            return scores, locs, self.generate_anchors(img, locs_sources)
