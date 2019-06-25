@@ -1,10 +1,7 @@
 import functools
 import logging
-from collections import OrderedDict
 
 import torch
-from torch.nn import SyncBatchNorm
-from torch.nn.parallel.distributed import DistributedDataParallel
 
 from bf.builders import base_builder
 from bf.utils.misc_utils import filter_kwargs
@@ -66,8 +63,12 @@ def init(device,
     torch.cuda.empty_cache()
 
     if distributed:
-        detector = SyncBatchNorm.convert_sync_batchnorm(detector)
-        detector.predictor = DistributedDataParallel(detector.predictor, device_ids=[device], output_device=device)
+        try:
+            from apex.parallel import DistributedDataParallel, convert_syncbn_model
+        except ImportError:
+            raise ImportError('Distributed training requires apex package installed.')
+        detector = convert_syncbn_model(detector)
+        detector.predictor = DistributedDataParallel(detector.predictor)
 
     logging.info(detector)
 
