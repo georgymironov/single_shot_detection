@@ -118,7 +118,7 @@ def main(args):
         mo_exporter.export(detector.model, cfg, 'model', folder='exported', postprocess=mo_add_output.add_output)
 
     if 'export-torch' in args.phases:
-        jit_exporter.export(detector.model, cfg.input_size, 'exported/model.pt')
+        jit_exporter.export(detector, cfg.input_size, 'exported/model.pt')
 
 
 if __name__ == '__main__':

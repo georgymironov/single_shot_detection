@@ -46,7 +46,7 @@ class Postprocessor(object):
 
         b_boxes = b_boxes.view(batch_size, num_priors, 4)
         b_boxes = b_boxes.to(priors.device)
-        b_boxes = self.box_coder.decode_box(b_boxes, priors, inplace=False)
+        b_boxes = self.box_coder.decode_box(b_boxes, priors, inplace=torch.tensor(0))
         b_boxes = box_utils.to_corners(b_boxes)
 
         b_scores = b_scores.to(b_boxes.device)

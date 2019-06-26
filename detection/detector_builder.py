@@ -37,7 +37,7 @@ def build(base,
                     extras,
                     predictor,
                     heads,
-                    num_classes=num_classes,
+                    num_classes,
                     anchor_generators=anchor_generators)
 
 def get_extras(source_out_channels,

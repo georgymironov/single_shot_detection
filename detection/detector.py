@@ -10,7 +10,8 @@ class Predictor(nn.Module):
                  features,
                  extras,
                  predictor,
-                 heads):
+                 heads,
+                 num_classes):
         super(Predictor, self).__init__()
 
         self.features = features
@@ -19,6 +20,7 @@ class Predictor(nn.Module):
         self.predictor_activation = predictor[1]
         self.predictor_norm = predictor[2]
         self.heads = heads
+        self.num_classes = num_classes
 
     def forward(self, img):
         """
@@ -76,34 +78,18 @@ class Predictor(nn.Module):
         locs = torch.cat(locs, dim=1)
 
         if bf.utils.onnx_exporter.is_exporting():
+            scores = scores.view(img.size(0), -1, self.num_classes)
+            scores = F.softmax(scores, dim=-1)
+            scores = scores.view(img.size(0), -1)
             return scores, locs
         else:
             return scores, locs, loc_sources
 
-class _ScriptDetector(torch.jit.ScriptModule):
-    def __init__(self, traced_predictor, anchors):
-        super(_ScriptDetector, self).__init__()
-        self.anchors = nn.Parameter(anchors)
-        self.traced_predictor = traced_predictor
-
-    @torch.jit.script_method
-    def forward(self, x):
-        return (*self.traced_predictor(x), self.anchors)
-
 class Detector(nn.Module):
-    def __init__(self, *args, num_classes, anchor_generators):
+    def __init__(self, *args, anchor_generators):
         super(Detector, self).__init__()
         self.predictor = Predictor(*args)
-        self.num_classes = num_classes
         self.priors = anchor_generators
-
-    def jit(self, x):
-        scores, locs, anchors = self.forward(x)
-
-        with bf.utils.onnx_exporter.for_export():
-            traced_predictor = torch.jit.trace(self.predictor, x)
-
-        return _ScriptDetector(traced_predictor, anchors)
 
     def generate_anchors(self, img, sources):
         anchors = []
@@ -116,11 +102,7 @@ class Detector(nn.Module):
             output = self.predictor.forward(img)
 
         if bf.utils.onnx_exporter.is_exporting():
-            scores, locs = output
-            scores = scores.view(img.size(0), -1, self.num_classes)
-            scores = F.softmax(scores, dim=-1)
-            scores = scores.view(img.size(0), -1)
-            return scores, locs
+            return output
         else:
             scores, locs, locs_sources = output
             return scores, locs, self.generate_anchors(img, locs_sources)
