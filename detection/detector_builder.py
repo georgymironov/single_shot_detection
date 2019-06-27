@@ -6,6 +6,7 @@ from bf.modules import conv
 from bf.modules import features as _features
 from detection import anchor_generators as _anchor_generators
 from detection.detector import Detector
+from detection.modules import predictors
 
 
 def build(base,
@@ -14,7 +15,8 @@ def build(base,
           features,
           use_depthwise=False,
           extras={},
-          predictor={}):
+          predictor={},
+          heads={}):
 
     extra_layers = extras.get('layers', [])
 
@@ -31,7 +33,19 @@ def build(base,
     num_boxes = [x.num_boxes for x in anchor_generators]
 
     extras = get_extras(source_out_channels, use_depthwise=use_depthwise, **extras)
-    predictor, heads = get_predictor(source_out_channels, num_boxes, num_classes, use_depthwise, **predictor)
+
+    predictor = get_predictor(source_out_channels,
+                              num_boxes,
+                              num_classes,
+                              use_depthwise,
+                              predictor_args=predictor)
+
+    out_channels = predictor.out_channels if predictor else source_out_channels
+
+    heads = get_heads(out_channels,
+                      num_boxes,
+                      num_classes,
+                      **heads)
 
     return Detector(features,
                     extras,
@@ -94,70 +108,43 @@ def get_extras(source_out_channels,
 
     return extras
 
-def get_predictor(source_out_channels,
-                  num_boxes,
-                  num_classes,
-                  use_depthwise=False,
-                  num_layers=0,
-                  num_channels=256,
-                  kernel_size=3,
-                  batch_norm={},
-                  activation={'name': 'ReLU', 'args': {'inplace': True}},
-                  initializer={'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
-                  score_head_bias_init=0):
-    if num_layers > 0:
-        assert len(set(source_out_channels)) == 1
-
-    predictor = nn.ModuleDict()
-    norms = nn.ModuleDict()
-    for head in ['score', 'loc']:
-        in_channels = source_out_channels[0]
-        layers = nn.ModuleList()
-        norms[head] = nn.ModuleList()
-
-        for _ in range(num_layers):
-            if use_depthwise:
-                layers.append(conv.DepthwiseConv2dBn(in_channels, num_channels, kernel_size=kernel_size, padding=1,
-                                                     bias=True, activation_params=None, use_bn=False))
-            else:
-                layers.append(conv.Conv2dBn(in_channels, num_channels, kernel_size=kernel_size, padding=1, bias=True,
-                                            activation_params=None, use_bn=False))
-            layer_norms = nn.ModuleList()
-            for _ in source_out_channels:
-                layer_norms.append(nn.BatchNorm2d(num_channels, **batch_norm))
-            norms[head].append(layer_norms)
-
-            in_channels = num_channels
-        predictor[head] = layers
-
-    activation_ = getattr(nn, activation['name'])(**activation.get('args', {}))
-
-    if num_layers > 0:
-        out_channels = [num_channels] * len(source_out_channels)
-    else:
-        out_channels = source_out_channels
-
+def get_heads(out_channels,
+              num_boxes,
+              num_classes,
+              initializer={'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
+              score_head_bias_init=0.0):
     initializer_ = functools.partial(getattr(nn.init, initializer['name']), **initializer.get('args', {}))
 
-    def _init_predictor(layer):
-        if isinstance(layer, nn.Conv2d):
-            initializer_(layer.weight)
-            nn.init.zeros_(layer.bias)
-
-    predictor.apply(_init_predictor)
+    def _init_head(layer):
+        initializer_(layer.weight)
+        nn.init.zeros_(layer.bias)
 
     def _init_score_head(layer):
         initializer_(layer.weight)
         nn.init.constant_(layer.bias, score_head_bias_init)
 
     heads = nn.ModuleList()
+
     for in_channels, num_boxes in zip(out_channels, num_boxes):
         score_head = nn.Conv2d(in_channels, num_boxes * num_classes, kernel_size=3, padding=1, bias=True)
         loc_head = nn.Conv2d(in_channels, num_boxes * 4, kernel_size=3, padding=1, bias=True)
 
         score_head.apply(_init_score_head)
-        loc_head.apply(_init_predictor)
+        loc_head.apply(_init_head)
 
         heads.append(nn.ModuleDict({'score': score_head, 'loc': loc_head}))
 
-    return (predictor, activation_, norms), heads
+    return heads
+
+def get_predictor(source_out_channels,
+                  num_boxes,
+                  num_classes,
+                  use_depthwise,
+                  predictor_args):
+
+    if not predictor_args:
+        return None
+
+    predictor = predictors.SharedConvPredictor(source_out_channels, num_boxes, num_classes, use_depthwise, **predictor_args)
+
+    return predictor

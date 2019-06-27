@@ -16,9 +16,7 @@ class Predictor(nn.Module):
 
         self.features = features
         self.extras = extras
-        self.predictor_conv = predictor[0]
-        self.predictor_activation = predictor[1]
-        self.predictor_norm = predictor[2]
+        self.predictor = predictor
         self.heads = heads
         self.num_classes = num_classes
 
@@ -44,20 +42,10 @@ class Predictor(nn.Module):
                     x = layer(x)
                 sources.append(x)
 
-        score_sources = loc_sources = sources
-
-        for score_conv, loc_conv, score_norm, loc_norm in zip(self.predictor_conv['score'],
-                                                              self.predictor_conv['loc'],
-                                                              self.predictor_norm['score'],
-                                                              self.predictor_norm['loc']):
-            score_sources = map(score_conv, score_sources)
-            loc_sources = map(loc_conv, loc_sources)
-
-            score_sources = map(self.predictor_activation, score_sources)
-            loc_sources = map(self.predictor_activation, loc_sources)
-
-            score_sources = [norm(x) for norm, x in zip(score_norm, score_sources)]
-            loc_sources = [norm(x) for norm, x in zip(loc_norm, loc_sources)]
+        if self.predictor:
+            score_sources, loc_sources = self.predictor(sources)
+        else:
+            score_sources = loc_sources = sources
 
         for i, (head, score_source, loc_source) in enumerate(zip(self.heads, score_sources, loc_sources)):
             with torch.jit.scope(f'ModuleList[heads]/ModuleDict[{i}]'):

@@ -21,7 +21,10 @@ model = {
             'kernel_size': 3,
             'activation': {'name': 'ReLU', 'args': {'inplace': True}},
             'initializer': {'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
-            'class_head_bias_init': -4.6
+        },
+        'heads': {
+            'initializer': {'name': 'normal_', 'args': {'mean': 0, 'std': 0.01}},
+            'score_head_bias_init': -4.6
         }
     },
     'anchor_generator': {
