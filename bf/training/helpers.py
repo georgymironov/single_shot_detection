@@ -92,6 +92,8 @@ def get_default_argparser():
                         help='Restore from weigths rather than from pickled model when loading checkpoint')
     parser.add_argument('--cpu', default=False, action='store_true',
                         help='Run model on CPU')
+    parser.add_argument('--parallel', default=False, action='store_true',
+                        help='Enable data parallel')
 
     distributed = parser.add_argument_group('distributed')
     distributed.add_argument('--distributed', default=False, action='store_true',
@@ -102,6 +104,7 @@ def get_default_argparser():
                              help='Rank of the current process')
     distributed.add_argument('--master-port', type=int, default=44444,
                              help='Free local port for distributed workers communication')
+
     return parser
 
 def get_csv_log_file(args, log_dir):

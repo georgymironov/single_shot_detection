@@ -42,6 +42,7 @@ def main(args):
                                                             target_assigner_params=cfg.target_assigner,
                                                             state=state,
                                                             preprocess=preprocess,
+                                                            parallel=args.parallel,
                                                             distributed=args.distributed)
 
     if 'eval' in args.phases:

@@ -25,7 +25,10 @@ def init(device,
          target_assigner_params,
          state={},
          preprocess=None,
+         parallel=False,
          distributed=False):
+    assert not (parallel and distributed)
+
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
@@ -61,6 +64,9 @@ def init(device,
 
     detector = detector.to(device)
     torch.cuda.empty_cache()
+
+    if parallel:
+        detector.predictor = torch.nn.parallel.DataParallel(detector.predictor)
 
     if distributed:
         try:
