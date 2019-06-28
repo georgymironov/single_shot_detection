@@ -2,8 +2,8 @@ seed = 23
 
 model = {
     'base': {
-        'name': 'vgg16_bn',
-        'weight': 'torchvision'
+        'name': 'torchvision_vgg16_bn',
+        'pretrained': True
     },
     'detector': {
         'num_classes': 81,

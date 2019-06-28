@@ -85,7 +85,7 @@ class MobileNetV2(nn.Module):
                  min_depth=4,
                  classes=1000,
                  include_top=False,
-                 batch_norm_params={},
+                 batch_norm={},
                  init_weights=True):
         super(MobileNetV2, self).__init__()
 
@@ -97,10 +97,10 @@ class MobileNetV2(nn.Module):
 
         conv_bn = functools.partial(_conv_bn,
                                     bias=False,
-                                    batch_norm_params=batch_norm_params)
+                                    batch_norm_params=batch_norm)
         inverted_residual_bottleneck = functools.partial(_inverted_residual_bottleneck,
                                                          bias=False,
-                                                         batch_norm_params=batch_norm_params)
+                                                         batch_norm_params=batch_norm)
 
         self.features = nn.Sequential(
             conv_bn(input_shape[0], depth(32), kernel_size=3, stride=2),                        # 0

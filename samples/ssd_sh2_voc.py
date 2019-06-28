@@ -2,8 +2,8 @@ seed = 23
 
 model = {
     'base': {
-        'name': 'shufflenet_v2_x1_0',
-        'weight': 'torchvision'
+        'name': 'torchvision_shufflenet_v2_x1_0',
+        'pretrained': True
     },
     'detector': {
         'num_classes': 21,

@@ -2,8 +2,8 @@ seed = 23
 
 model = {
     'base': {
-        'name': 'resnet50',
-        'weight': 'torchvision'
+        'name': 'torchvision_resnet50',
+        'pretrained': True
     },
     'detector': {
         'num_classes': 20,

@@ -44,7 +44,7 @@ def init(device,
         else:
             detector = loaded
     else:
-        base = base_builder.create_base(model_params)
+        base = base_builder.create_base(**model_params['base'])
         detector = filter_kwargs(detector_builder.build)(base,
                                                          anchor_generator_params=model_params['anchor_generator'],
                                                          **model_params['detector'])

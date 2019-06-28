@@ -3,6 +3,8 @@ import os
 import torch
 import torch.nn as nn
 
+import torchvision
+
 from bf import base as detection_base
 
 
@@ -40,25 +42,38 @@ class _shufflenet_v2_wrapper(nn.Module):
     def forward(self, x):
         return self.features(x)
 
-def create_base(model_params):
-    Base = getattr(detection_base, model_params['base']['name'])
-    kwargs = {}
+class _senet_wrapper(nn.Module):
+    def __init__(self, model):
+        super(_senet_wrapper, self).__init__()
 
-    weight = model_params['base'].get('weight', None)
-    if weight == 'torchvision':
-        kwargs['pretrained'] = True
+        self.features = nn.Sequential(
+            model.layer0,
+            model.layer1,
+            model.layer2,
+            model.layer3,
+            model.layer4,
+        )
 
-    batch_norm = model_params['base'].get('batch_norm', {})
-    if batch_norm:
-        kwargs['batch_norm_params'] = batch_norm
+    def forward(self, x):
+        return self.features(x)
 
-    base = Base(**kwargs)
+def create_base(name, weight=None, **model_args):
+    Base = getattr(detection_base, name)
 
-    if weight == 'torchvision':
-        if model_params['base']['name'].startswith('resnet'):
-            base = _resnet_wrapper(base)
-        if model_params['base']['name'].startswith('shufflenet_v2'):
-            base = _shufflenet_v2_wrapper(base)
+    base = Base(**model_args)
+
+    if isinstance(base, torchvision.models.ResNet):
+        base = _resnet_wrapper(base)
+    if isinstance(base, torchvision.models.ShuffleNetV2):
+        base = _shufflenet_v2_wrapper(base)
+
+    try:
+        import pretrainedmodels
+
+        if isinstance(base, pretrainedmodels.models.senet.SENet):
+            base = _senet_wrapper(base)
+    except Exception:
+        pass
 
     if weight == 'keras':
         base.init_from_keras()

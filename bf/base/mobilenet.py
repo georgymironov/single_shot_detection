@@ -74,7 +74,7 @@ class MobileNet(nn.Module):
                  min_depth=4,
                  classes=1000,
                  include_top=False,
-                 batch_norm_params={},
+                 batch_norm={},
                  init_weights=True):
         super(MobileNet, self).__init__()
 
@@ -87,11 +87,11 @@ class MobileNet(nn.Module):
         conv_bn = functools.partial(_conv_bn,
                                     kernel_size=3,
                                     bias=False,
-                                    batch_norm_params=batch_norm_params)
+                                    batch_norm_params=batch_norm)
         depthwise_conv_bn = functools.partial(_depthwise_conv_bn,
                                               kernel_size=3,
                                               bias=False,
-                                              batch_norm_params=batch_norm_params)
+                                              batch_norm_params=batch_norm)
 
         self.features = nn.Sequential(
             conv_bn(input_shape[0], depth(32), stride=2),           # 0

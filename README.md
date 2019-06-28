@@ -4,7 +4,7 @@ Build flexible object detection pipelines with declarative configuration
 You are being provided with the following set of features:
 - Supporting latest PyTorch release
 - Train SSD, M2Det, RetinaNet or some custom architecture
-- Available backbones: torchvision + MobileNet, MobileNetV2
+- Available backbones: torchvision + [pretrainedmodels](https://github.com/Cadene/pretrained-models.pytorch) + custom MobileNet, MobileNetV2
 - Data augmentations
 - [AdamW and SGDW](https://www.fast.ai/2018/07/02/adam-weight-decay/) optimizers, some custom learning rate schedulers
 - Weight pruning for efficient inference
