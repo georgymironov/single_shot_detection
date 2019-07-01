@@ -78,6 +78,6 @@ def create_base(name, weight=None, **model_args):
     if weight == 'keras':
         base.init_from_keras()
     elif weight is not None and os.path.exists(weight):
-        base.load_state_dict(torch.load(weight), map_location='cpu')
+        base.load_state_dict(torch.load(weight, map_location='cpu'))
 
     return base
