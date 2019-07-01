@@ -29,7 +29,7 @@ def optimizer(event_emitter, optimizer):
 
 def loss(event_emitter, amp=False):
     @event_emitter.on('step_end')
-    def update_loss(phase, global_state, loss=None, **kwargs):
+    def update_loss(phase, global_state=None, loss=None, **kwargs):
         if phase == 'train':
             if amp:
                 try:
