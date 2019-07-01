@@ -73,10 +73,9 @@ class Trainer(object):
 
             with torch.enable_grad():
                 loss, _, phase_state = self.step_fn(step, 'train', batch, phase_state)
-                loss.backward()
 
             if (step + 1) % self.accumulation_steps == 0:
-                self.event_emitter.emit('step_end', phase='train', step=step, global_state=self.state, state=phase_state)
+                self.event_emitter.emit('step_end', phase='train', step=step, global_state=self.state, state=phase_state, loss=loss)
 
         self.state['model_dict'] = self.model.state_dict()
 

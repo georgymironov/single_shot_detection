@@ -105,6 +105,12 @@ def get_default_argparser():
     distributed.add_argument('--master-port', type=int, default=44444,
                              help='Free local port for distributed workers communication')
 
+    amp = parser.add_argument_group('amp')
+    amp.add_argument('--amp', default=False, action='store_true',
+                     help='Enable multiprecision training')
+    amp.add_argument('--amp-level', type=str, default='O1',
+                     help='Apex amp opt_level')
+
     return parser
 
 def get_csv_log_file(args, log_dir):
@@ -131,3 +137,11 @@ def launch(args, main):
 
     else:
         main(args)
+
+def init_amp(args, model, optimizer):
+    try:
+        from apex import amp
+    except ImportError:
+        raise ImportError('Multiprecision training requires apex package installed.')
+
+    amp.initialize(model, optimizer, opt_level=args.amp_level)

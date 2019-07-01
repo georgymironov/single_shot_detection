@@ -3,7 +3,6 @@ import csv
 import os
 
 import torch
-import torch.distributed as dist
 
 from bf.training import env, schedulers
 
@@ -27,6 +26,21 @@ def optimizer(event_emitter, optimizer):
     def save_state(phase, phase_state, global_state=None, **kwargs):
         if phase == 'train':
             global_state['optimizer_dict'] = optimizer.state_dict()
+
+def loss(event_emitter, amp=False):
+    @event_emitter.on('step_end')
+    def update_loss(phase, global_state, loss=None, **kwargs):
+        if phase == 'train':
+            if amp:
+                try:
+                    from apex import amp as apex_amp
+                except ImportError:
+                    raise ImportError('Multiprecision training requires apex package installed.')
+                with apex_amp.scale_loss(loss, global_state['optimizer']) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
+
 
 @env.master_only
 def progress(event_emitter):
