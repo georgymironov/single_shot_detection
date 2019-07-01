@@ -40,38 +40,47 @@ def create_datasets(datasets, augment, preprocess):
 
     return _datasets
 
+def create_samples(datasets,
+                   shuffle=False,
+                   distributed=False):
+    if distributed and shuffle:
+        logging.warn('WRN: dataset shuffling is not supported for distributed training')
+
+    samplers = {}
+
+    for phase in datasets.keys():
+        if distributed and phase == 'train':
+            samplers[phase] = DistributedSampler(datasets[phase])
+        elif shuffle and phase == 'train':
+            samplers[phase] = RandomSampler(datasets[phase])
+        else:
+            samplers[phase] = SequentialSampler(datasets[phase])
+
+    return samplers
+
 def _worker_init_fn(worker_id, seed):
     import numpy as np
     np.random.seed(seed + worker_id)
 
 def create_dataloaders(datasets,
+                       samplers,
                        batch_size,
-                       shuffle=False,
                        num_workers=0,
-                       pin_memory=False,
-                       distributed=False):
-
-    if distributed and shuffle:
-        logging.warn('WRN: dataset shuffling is not supported for distributed training')
-
+                       pin_memory=False):
     dataloaders = {}
     worker_init_fn = partial(_worker_init_fn, seed=torch.initial_seed())
 
     for phase in datasets.keys():
-        if distributed and phase == 'train':
-            sampler = DistributedSampler(datasets[phase])
-        elif shuffle and phase == 'train':
-            sampler = RandomSampler(datasets[phase])
-        else:
-            sampler = SequentialSampler(datasets[phase])
+        _batch_size = batch_size * 2 if phase == 'eval' else batch_size
+        _drop_last = phase == 'train'
 
         dataloaders[phase] = DataLoader(datasets[phase],
-                                        batch_size=batch_size * 2 if phase == 'eval' else batch_size,
-                                        sampler=sampler,
+                                        batch_size=_batch_size,
+                                        sampler=samplers[phase],
                                         collate_fn=datasets[phase].collate,
                                         num_workers=num_workers,
                                         pin_memory=pin_memory,
-                                        drop_last=(phase == 'train'),
+                                        drop_last=_drop_last,
                                         worker_init_fn=worker_init_fn)
 
     return dataloaders

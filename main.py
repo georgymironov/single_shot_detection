@@ -26,12 +26,16 @@ def main(args):
 
     if 'train' in args.phases or 'eval' in args.phases:
         datasets = data_builder.create_datasets(cfg.dataset, augment=augment, preprocess=preprocess)
+
+        samplers = data_builder.create_samples(datasets=datasets,
+                                               shuffle=cfg.shuffle,
+                                               distributed=args.distributed)
+
         dataloaders = data_builder.create_dataloaders(datasets=datasets,
+                                                      samplers=samplers,
                                                       batch_size=cfg.batch_size,
-                                                      shuffle=cfg.shuffle,
                                                       num_workers=cfg.num_workers,
-                                                      pin_memory=use_cuda,
-                                                      distributed=args.distributed)
+                                                      pin_memory=use_cuda)
 
     detector, init_epoch_state_fn, step_fn = init_detection(device=device,
                                                             model_params=cfg.model,
