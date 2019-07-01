@@ -3,6 +3,7 @@ import logging
 
 import torch
 
+from bf.datasets import detection_dataset as det_ds
 from bf.utils import box_utils
 
 
@@ -10,7 +11,7 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
     """
     Args:
         predictions: torch.tensor(:shape [NumBoxes, 7] ~ {[0] - image_id, [1-4] - box, [5] - class, [6] - score})
-        gts: list(:len NumImages) of torch.tensor(:shape [NumBoxes_i, 5/6] ~ {[0-3] - box, [4] - class, [5]? - is_difficult})
+        gts: list(:len NumImages) ~ torch.tensor(:shape [NumBoxes_i, NumAttributes])
         class_labels: dict(:keys ClassId, :values ClassName)
         iou_threshold: float
         voc: bool
@@ -18,19 +19,19 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
     Returns:
         mAP: float
     """
-    ignore_difficult = gts[0].size(1) == 6
+    ignore_difficult = gts[0].size(1) > det_ds.DIFFICULT_INDEX
     total_positive = defaultdict(int)
     gt_grouped = []
     gt_classes = []
 
     for i, gt in enumerate(gts):
-        gt_classes.append(gt[..., 4].long())
+        gt_classes.append(gt[..., det_ds.CLASS_INDEX].long())
         gt_by_class = defaultdict(list)
 
         for y, class_index in zip(gt, gt_classes[i]):
             class_index = class_index.item()
             gt_by_class[class_index].append(y)
-            if not ignore_difficult or y[5].item() == 0:
+            if not ignore_difficult or y[det_ds.DIFFICULT_INDEX].item() == 0:
                 total_positive[class_index] += 1
 
         gt_by_class = {class_index: torch.stack(gt_boxes, dim=0) for class_index, gt_boxes in gt_by_class.items()}
@@ -55,10 +56,10 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
             false_positive[class_index][-1] += 1
             continue
 
-        jaccard = box_utils.jaccard(box.unsqueeze(0), gt_grouped[id_][class_index][:, :4]).squeeze_(0)
+        jaccard = box_utils.jaccard(box.unsqueeze(0), gt_grouped[id_][class_index][:, det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]).squeeze_(0)
         iou, index = jaccard.max(dim=0)
         if iou.item() > iou_threshold:
-            if not ignore_difficult or gt_grouped[id_][class_index][index, 5] == 0:
+            if not ignore_difficult or gt_grouped[id_][class_index][index, det_ds.DIFFICULT_INDEX] == 0:
                 if index.item() not in matched[id_][class_index]:
                     true_positive[class_index][-1] += 1
                     matched[id_][class_index].add(index.item())

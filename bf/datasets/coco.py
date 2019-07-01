@@ -57,7 +57,7 @@ class Coco(DetectionDataset):
             self.annotations[a['image_id']]['image_path'] = os.path.join(img_dir, image['file_name'])
             self.annotations[a['image_id']]['width'] = image['width']
             self.annotations[a['image_id']]['height'] = image['height']
-            self.annotations[a['image_id']]['boxes'].append(a['bbox'] + [categories[a['category_id']]])
+            self.annotations[a['image_id']]['boxes'].append(a['bbox'] + [categories[a['category_id']], 1.0])
         self.annotations = list(self.annotations.values())
 
         self._fix_boxes()

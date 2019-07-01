@@ -7,6 +7,13 @@ from torch.utils.data import Dataset
 from bf.utils import image_utils
 
 
+LOC_INDEX_START = 0
+LOC_INDEX_END = 4
+CLASS_INDEX = 4
+SCORE_INDEX = 5
+DIFFICULT_INDEX = 6
+
+
 class DetectionDataset(Dataset):
     def __getitem__(self, index):
         annotation = self.annotations[index]

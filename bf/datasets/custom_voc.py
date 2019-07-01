@@ -50,6 +50,7 @@ class CustomVoc(DetectionDataset):
                     min(int(x['bndbox']['xmax']), width - 1),
                     min(int(x['bndbox']['ymax']), height - 1),
                     self.class_labels.index(label),
+                    1.0,
                     int(x.get('difficult', 0))
                 ]
                 if not _sanity_check(box):

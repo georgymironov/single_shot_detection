@@ -48,6 +48,7 @@ class Voc(DetectionDataset):
                     min(int(x['bndbox']['xmax']), width - 1),
                     min(int(x['bndbox']['ymax']), height - 1),
                     self.class_labels.index(x['name']),
+                    1.0,
                     int(x['difficult'])
                 ] for x in objects]
 
