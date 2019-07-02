@@ -102,8 +102,8 @@ def init(device,
 
         *prediction, priors = detector(imgs)
 
-        target_classes, target_locs = target_assigner.encode_ground_truth(ground_truth, priors)
-        target = target_classes.to(device), target_locs.to(device)
+        target = target_assigner.encode_ground_truth(ground_truth, priors)
+        target = target.to(device)
 
         loss, class_loss, loc_loss = criterion(prediction, target)
 

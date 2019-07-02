@@ -1,8 +1,8 @@
-import torch
 import torch.nn as nn
 
 from bf.modules import losses
 from bf.utils.misc_utils import get_ctor
+from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX
 
 
 class MultiboxLoss(nn.Module):
@@ -37,7 +37,9 @@ class MultiboxLoss(nn.Module):
             losses: tuple(float, float)
         """
         classes, locs = pred
-        target_classes, target_locs = target
+
+        target_locs = target[..., LOC_INDEX_START:LOC_INDEX_END]
+        target_classes = target[..., CLASS_INDEX].long()
 
         batch_size = classes.size(0)
         num_priors = target_classes.size(1)

@@ -1,7 +1,14 @@
 import torch
 
 from bf.utils import box_utils
+from bf.datasets import detection_dataset as det_ds
 from detection.matcher import match_per_prediction
+
+
+LOC_INDEX_START = 0
+LOC_INDEX_END = 4
+CLASS_INDEX = 4
+SCORE_INDEX = 5
 
 
 class TargetAssigner(object):
@@ -10,44 +17,45 @@ class TargetAssigner(object):
         self.matched_threshold = matched_threshold
         self.unmatched_threshold = unmatched_threshold
 
-    def encode_ground_truth(self, ground_truth, priors):
+    def encode_ground_truth(self, ground_truth, anchors):
         """
         Args:
             ground_truth: list(:len Batch) of torch.tensor(:shape [Boxes_i, 5])
-            priors: torch.tensor(:shape [AnchorBoxes, 4])
+            anchors: torch.tensor(:shape [AnchorBoxes, 4])
         Returns:
             target_classes: torch.tensor(:shape [Batch, AnchorBoxes])
             target_locs: torch.tensor(:shape [Batch, AnchorBoxes, 4])
         """
         batch_size = len(ground_truth)
-        num_priors = priors.size(0)
-        device = priors.device
+        num_anchors = anchors.size(0)
+        device = anchors.device
 
         ground_truth = [x.to(device, non_blocking=True) for x in ground_truth]
-        corner_priors = box_utils.to_corners(priors)
+        corner_anchors = box_utils.to_corners(anchors)
 
-        target_classes = torch.zeros((batch_size, num_priors), dtype=torch.long, device=device)
-        target_locs = torch.zeros((batch_size, num_priors, 4), dtype=torch.float32, device=device)
+        target = torch.zeros((batch_size, num_anchors, 6), dtype=torch.float32, device=device)
+        target[..., SCORE_INDEX] = torch.ones_like(target[..., SCORE_INDEX])
 
         for i, gt in enumerate(ground_truth):
-            if len(gt) == 0:
+            if not len(gt):
                 continue
 
-            weights = box_utils.jaccard(gt[:, :4], corner_priors)
+            gt_boxes = gt[:, det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]
+            weights = box_utils.jaccard(gt_boxes, corner_anchors)
 
-            box_idx = match_per_prediction(weights,
-                                           matched_threshold=self.matched_threshold,
-                                           unmatched_threshold=self.unmatched_threshold)
+            box_idx = match_per_prediction(weights, self.matched_threshold, self.unmatched_threshold)
             matched = box_idx >= 0
-            target_classes[i, matched] = gt[box_idx[matched], 4].long()
-            target_locs[i, matched] = gt[box_idx[matched], :4]
+
+            target[i, matched, LOC_INDEX_START:LOC_INDEX_END] = gt[box_idx[matched], det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]
+            target[i, matched, CLASS_INDEX] = gt[box_idx[matched], det_ds.CLASS_INDEX]
+            target[i, matched, SCORE_INDEX] = gt[box_idx[matched], det_ds.SCORE_INDEX]
 
             ingored = box_idx == -1
-            target_classes[i, ingored] = -1
+            target[i, ingored, CLASS_INDEX] = -1
 
-        target_locs = box_utils.to_centroids(target_locs)
-        target_locs = self.box_coder.encode_box(target_locs, priors, inplace=False)
+        box_utils.to_centroids(target[..., LOC_INDEX_START:LOC_INDEX_END], inplace=True)
+        self.box_coder.encode_box(target[..., LOC_INDEX_START:LOC_INDEX_END], anchors, inplace=True)
 
-        assert not torch.isnan(target_locs[target_classes.gt(0)]).any().item()
+        assert not torch.isnan(target[..., LOC_INDEX_START:LOC_INDEX_END][target[..., CLASS_INDEX].gt(0)]).any().item()
 
-        return target_classes, target_locs
+        return target

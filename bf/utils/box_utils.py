@@ -22,14 +22,18 @@ def to_corners(box):
     """
     return torch.cat([box[..., :2] - box[..., 2:] / 2, box[..., :2] + box[..., 2:] / 2], dim=-1)
 
-def to_centroids(box):
+def to_centroids(box, inplace=False):
     """
     Args:
         box: torch.tensor(:shape [...Boxes, 4])
     Returns:
         centroids: torch.tensor(:shape [...Boxes, 4])
     """
-    return torch.cat([(box[..., 2:] + box[..., :2]) / 2, box[..., 2:] - box[..., :2]], dim=-1)
+    if inplace:
+        box[..., 2:] -= box[..., :2]
+        box[..., :2] += box[..., 2:] / 2
+    else:
+        return torch.cat([(box[..., 2:] + box[..., :2]) / 2, box[..., 2:] - box[..., :2]], dim=-1)
 
 def area(box):
     """
