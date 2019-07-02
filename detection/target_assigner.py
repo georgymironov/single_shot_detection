@@ -10,6 +10,8 @@ LOC_INDEX_END = 4
 CLASS_INDEX = 4
 SCORE_INDEX = 5
 
+IGNORE_INDEX = -1
+
 
 class TargetAssigner(object):
     def __init__(self, box_coder, matched_threshold, unmatched_threshold):
@@ -50,8 +52,9 @@ class TargetAssigner(object):
             target[i, matched, CLASS_INDEX] = gt[box_idx[matched], det_ds.CLASS_INDEX]
             target[i, matched, SCORE_INDEX] = gt[box_idx[matched], det_ds.SCORE_INDEX]
 
-            ingored = box_idx == -1
-            target[i, ingored, CLASS_INDEX] = -1
+            ingored = box_idx.eq(IGNORE_INDEX)
+            target[i, ingored, CLASS_INDEX] = IGNORE_INDEX
+            target[i, ingored, SCORE_INDEX] = IGNORE_INDEX
 
         box_utils.to_centroids(target[..., LOC_INDEX_START:LOC_INDEX_END], inplace=True)
         self.box_coder.encode_box(target[..., LOC_INDEX_START:LOC_INDEX_END], anchors, inplace=True)

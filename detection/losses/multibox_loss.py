@@ -1,8 +1,9 @@
+import torch
 import torch.nn as nn
 
 from bf.modules import losses
 from bf.utils.misc_utils import get_ctor
-from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX
+from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX, IGNORE_INDEX
 
 
 class MultiboxLoss(nn.Module):
@@ -15,7 +16,8 @@ class MultiboxLoss(nn.Module):
         super(MultiboxLoss, self).__init__()
 
         ClassificationLoss = get_ctor(losses, classification_loss['name'])
-        self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=-1, **classification_loss)
+        self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=IGNORE_INDEX, **classification_loss)
+        self.soft_target = getattr(self.classification_loss, 'SOFT_TARGET', False)
 
         LocalizationLoss = get_ctor(losses, localization_loss['name'])
         self.localization_loss = LocalizationLoss(reduction='sum', **localization_loss)
@@ -36,19 +38,28 @@ class MultiboxLoss(nn.Module):
         Returns:
             losses: tuple(float, float)
         """
-        classes, locs = pred
+        scores, locs = pred
 
         target_locs = target[..., LOC_INDEX_START:LOC_INDEX_END]
         target_classes = target[..., CLASS_INDEX].long()
+        target_scores = target[..., SCORE_INDEX]
 
-        batch_size = classes.size(0)
-        num_priors = target_classes.size(1)
+        batch_size = target.size(0)
+        num_priors = target.size(1)
 
-        classes = classes.view(batch_size, num_priors, -1)
+        scores = scores.view(batch_size, num_priors, -1)
         locs = locs.view(batch_size, num_priors, 4)
 
-        mask = self.sampler(classes, target_classes)
-        class_loss = self.classification_loss(classes[mask], target_classes[mask].view(-1))
+        mask = self.sampler(scores, target_classes)
+
+        scores = scores[mask]
+
+        if self.soft_target:
+            target = torch.zeros_like(scores)
+            target[torch.ones(target.size(0), dtype=torch.uint8, device=target.device), target_classes[mask]] = target_scores[mask]
+            class_loss = self.classification_loss(scores, target)
+        else:
+            class_loss = self.classification_loss(scores, target_classes[mask].view(-1))
 
         positive_mask = target_classes.gt(0)
         positive_locs = locs[positive_mask].view(-1, 4)

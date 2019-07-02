@@ -64,9 +64,8 @@ class box(object):
             return target
 
         region = np.array([xmin, ymin, xmin + width - 1, ymin + height - 1], dtype=np.float32)
-        new_target = np.zeros_like(target)
+        new_target = target.copy()
         new_target[:, :4] = box_utils.intersection(region[np.newaxis], target[:, :4], zero_incorrect=True).squeeze()
-        new_target[:, 4] = target[:, 4]
         jaccard = box_utils.jaccard(target[:, :4], new_target[:, :4], cartesian=False)
 
         if jaccard.max() > min_iou:

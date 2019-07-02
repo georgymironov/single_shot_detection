@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import CrossEntropyLoss, SmoothL1Loss, NLLLoss
+from torch.nn.modules.loss import *
 
 
 def _one_hot(prediction, target):
@@ -73,6 +73,32 @@ class SoftmaxFocalLoss(nn.Module):
             alpha = torch.full_like(target, self.alpha, dtype=torch.float)
             alpha[target == 0] = 1 - self.alpha
             loss.mul_(alpha)
+
+        if self.reduction == 'mean':
+            loss = loss.mean()
+        elif self.reduction == 'sum':
+            loss = loss.sum()
+
+        return loss
+
+class CrossEntropyWithSoftTargetsLoss(nn.Module):
+    SOFT_TARGET = True
+
+    def __init__(self, reduction='mean', ignore_index=-100):
+        super(CrossEntropyWithSoftTargetsLoss, self).__init__()
+
+        if reduction not in ['mean', 'sum', 'none']:
+            raise ValueError(f'Wrong value for reduction: {reduction}')
+
+        self.reduction = reduction
+        self.ignore_index = ignore_index
+
+    def forward(self, logits, target):
+        loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
+        mask = target.ne(self.ignore_index).all(dim=-1)
+
+        logpb = F.log_softmax(logits[mask], dim=-1)
+        loss[mask] = -1 * logpb.mul(target[mask]).sum(dim=-1)
 
         if self.reduction == 'mean':
             loss = loss.mean()

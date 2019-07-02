@@ -10,7 +10,7 @@ import detection.sampler
 from detection import detector_builder
 from detection.box_coder import BoxCoder
 from detection.detector_wrapper import DetectorWrapper
-from detection.losses.mutibox_loss import MultiboxLoss
+from detection.losses.multibox_loss import MultiboxLoss
 from detection.postprocessor import Postprocessor
 from detection.target_assigner import TargetAssigner
 from detection.utils import model_fixer
