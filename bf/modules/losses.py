@@ -84,21 +84,32 @@ class SoftmaxFocalLoss(nn.Module):
 class CrossEntropyWithSoftTargetsLoss(nn.Module):
     SOFT_TARGET = True
 
-    def __init__(self, reduction='mean', ignore_index=-100):
+    def __init__(self, reduction='mean', ignore_index=-100, epsilon=0.0):
         super(CrossEntropyWithSoftTargetsLoss, self).__init__()
 
         if reduction not in ['mean', 'sum', 'none']:
             raise ValueError(f'Wrong value for reduction: {reduction}')
 
+        assert 0.0 <= epsilon < 1
+
         self.reduction = reduction
         self.ignore_index = ignore_index
+        self.epsilon = epsilon
 
     def forward(self, logits, target):
         loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
         mask = target.ne(self.ignore_index).all(dim=-1)
 
         logpb = F.log_softmax(logits[mask], dim=-1)
-        loss[mask] = -1 * logpb.mul(target[mask]).sum(dim=-1)
+        target = target[mask]
+
+        if self.epsilon:
+            pos = target.gt(0)
+            target += (~pos).float() * self.epsilon * target.sum(-1, keepdim=True) \
+                / (target.size(1) - pos.sum(-1, keepdim=True)).float()
+            target -= pos.float() * target * self.epsilon
+
+        loss[mask] = -1 * logpb.mul(target).sum(dim=-1)
 
         if self.reduction == 'mean':
             loss = loss.mean()
