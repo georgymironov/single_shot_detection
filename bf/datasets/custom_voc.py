@@ -38,6 +38,10 @@ class CustomVoc(DetectionDataset):
 
             boxes = []
             for x in objects:
+                if x['name'] is None:
+                    logging.warn(f'WW Missing label, skipping: {annotation}')
+                    break
+
                 label = x['name'].lower()
                 if label in label_map:
                     label = label_map[label]
@@ -62,5 +66,5 @@ class CustomVoc(DetectionDataset):
                     'image_path': annotation.replace('.xml', '.jpg'),
                     'width': width,
                     'height': height,
-                    'boxes': np.array(boxes, dtype=np.float32).reshape((-1, 6))
+                    'boxes': np.array(boxes, dtype=np.float32).reshape((-1, 7))
                 })
