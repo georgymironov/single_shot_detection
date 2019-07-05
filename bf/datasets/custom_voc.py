@@ -11,7 +11,7 @@ from bf.utils import xml_utils
 
 
 def _sanity_check(box):
-    return box[0] < box[2] or box[1] < box[3]
+    return box[0] < box[2] and box[1] < box[3]
 
 class CustomVoc(DetectionDataset):
     def __init__(self,
