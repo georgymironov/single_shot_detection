@@ -37,6 +37,9 @@ def main(args):
                                                       num_workers=cfg.num_workers,
                                                       pin_memory=use_cuda)
 
+        if 'num_classes' not in cfg.model['detector']:
+            cfg.model['detector']['num_classes'] = datasets['train'].num_classes if 'train' in args.phases else datasets['eval'].num_classes
+
     detector, init_epoch_state_fn, step_fn = init_detection(device=device,
                                                             model_params=cfg.model,
                                                             box_coder_params=cfg.box_coder,
