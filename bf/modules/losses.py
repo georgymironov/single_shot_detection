@@ -4,32 +4,41 @@ import torch.nn.functional as F
 from torch.nn.modules.loss import *
 
 
-def _soften(target, epsilon):
-    pos = target.gt(0).float()
-    target += (1.0 - pos) * epsilon * target.sum(-1, keepdim=True) / (target.size(1) - pos.sum(-1, keepdim=True))
-    target -= pos * epsilon * target
-    return target
-
-class SigmoidFocalLoss(nn.Module):
-    MULTICLASS = True
-
-    def __init__(self, gamma=2.0, alpha=0.25, reduction='mean', ignore_index=-100):
-        super(SigmoidFocalLoss, self).__init__()
+class _Loss(nn.Module):
+    def __init__(self, reduction='mean', epsilon=0.0):
+        super(_Loss, self).__init__()
 
         if reduction not in ['mean', 'sum', 'none']:
             raise ValueError(f'Wrong value for reduction: {reduction}')
 
+        assert 0.0 <= epsilon < 1
+
+        self.reduction = reduction
+        self.epsilon = epsilon
+
+    def _reduce(self, loss):
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        return loss
+
+    def _soften(self, target):
+        pos = target.gt(0).float()
+        target += (1.0 - pos) * self.epsilon * target.sum(-1, keepdim=True) / (target.size(1) - pos.sum(-1, keepdim=True))
+        target -= pos * self.epsilon * target
+        return target
+
+class SigmoidFocalLoss(_Loss):
+    MULTICLASS = True
+
+    def __init__(self, gamma=2.0, alpha=0.25, **kwargs):
+        super(SigmoidFocalLoss, self).__init__(**kwargs)
         self.gamma = gamma
         self.alpha = alpha
-        self.reduction = reduction
-        self.ignore_index = ignore_index
 
     def forward(self, prediction, target):
         loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
-        mask = target.ne(self.ignore_index).all(dim=-1)
-
-        prediction = prediction[mask]
-        target = target[mask]
 
         alpha_weight = target * self.alpha + (1.0 - target) * (1.0 - self.alpha)
 
@@ -38,25 +47,15 @@ class SigmoidFocalLoss(nn.Module):
 
         cross_entropy = F.binary_cross_entropy_with_logits(prediction, target, reduction='none')
 
-        loss[mask] = (alpha_weight * (1 - pb).pow(self.gamma) * cross_entropy).sum(dim=-1)
+        loss = (alpha_weight * (1 - pb).pow(self.gamma) * cross_entropy).sum(dim=-1)
 
-        if self.reduction == 'mean':
-            loss = loss.sum() / mask.sum()
-        elif self.reduction == 'sum':
-            loss = loss.sum()
+        return self._reduce(loss)
 
-        return loss
-
-class SoftmaxFocalLoss(nn.Module):
-    def __init__(self, gamma=0.0, alpha=None, reduction='mean', ignore_index=-100):
-        super(SoftmaxFocalLoss, self).__init__()
-
-        if reduction not in ['mean', 'sum', 'none']:
-            raise ValueError(f'Wrong value for reduction: {reduction}')
-
+class SoftmaxFocalLoss(_Loss):
+    def __init__(self, gamma=0.0, alpha=None, ignore_index=-100, **kwargs):
+        super(SoftmaxFocalLoss, self).__init__(**kwargs)
         self.gamma = gamma
         self.alpha = alpha
-        self.reduction = reduction
         self.ignore_index = ignore_index
 
     def forward(self, input_, target):
@@ -74,78 +73,29 @@ class SoftmaxFocalLoss(nn.Module):
             alpha[target == 0] = 1 - self.alpha
             loss.mul_(alpha)
 
-        if self.reduction == 'mean':
-            loss = loss.sum() / mask.sum()
-        elif self.reduction == 'sum':
-            loss = loss.sum()
+        return self._reduce(loss)
 
-        return loss
-
-class CrossEntropyWithSoftTargetsLoss(nn.Module):
+class CrossEntropyWithSoftTargetsLoss(_Loss):
     SOFT_TARGET = True
-
-    def __init__(self, reduction='mean', ignore_index=-100, epsilon=0.0):
-        super(CrossEntropyWithSoftTargetsLoss, self).__init__()
-
-        if reduction not in ['mean', 'sum', 'none']:
-            raise ValueError(f'Wrong value for reduction: {reduction}')
-
-        assert 0.0 <= epsilon < 1
-
-        self.reduction = reduction
-        self.ignore_index = ignore_index
-        self.epsilon = epsilon
 
     def forward(self, logits, target):
         loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
-        mask = target.ne(self.ignore_index).all(dim=-1)
 
-        logpb = F.log_softmax(logits[mask], dim=-1)
-        target = target[mask]
+        logpb = F.log_softmax(logits, dim=-1)
 
         if self.epsilon:
-            target = _soften(target, self.epsilon)
+            target = self._soften(target)
 
-        loss[mask] = -1 * logpb.mul(target).sum(dim=-1)
+        loss = -1 * logpb.mul(target).sum(dim=-1)
 
-        if self.reduction == 'mean':
-            loss = loss.sum() / mask.sum()
-        elif self.reduction == 'sum':
-            loss = loss.sum()
+        return self._reduce(loss)
 
-        return loss
-
-class BinaryCrossEntropyWithSoftTargetsLoss(nn.Module):
+class BinaryCrossEntropyWithSoftTargetsLoss(_Loss):
     SOFT_TARGET = True
     MULTICLASS = True
 
-    def __init__(self, reduction='mean', ignore_index=-100, epsilon=0.0):
-        super(BinaryCrossEntropyWithSoftTargetsLoss, self).__init__()
-
-        if reduction not in ['mean', 'sum', 'none']:
-            raise ValueError(f'Wrong value for reduction: {reduction}')
-
-        assert 0.0 <= epsilon < 1
-
-        self.reduction = reduction
-        self.ignore_index = ignore_index
-        self.epsilon = epsilon
-
     def forward(self, logits, target):
-        loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
-        mask = target.ne(self.ignore_index).all(dim=-1)
-
-        logits = logits[mask]
-        target = target[mask]
-
         if self.epsilon:
-            target = _soften(target, self.epsilon)
+            target = self._soften(target)
 
-        loss[mask] = F.binary_cross_entropy_with_logits(logits, target, reduction='none').sum(dim=-1)
-
-        if self.reduction == 'mean':
-            loss = loss.sum() / mask.sum()
-        elif self.reduction == 'sum':
-            loss = loss.sum()
-
-        return loss
+        return F.binary_cross_entropy_with_logits(logits, target, reduction=self.reduction)

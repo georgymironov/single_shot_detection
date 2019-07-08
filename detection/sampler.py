@@ -3,15 +3,17 @@ import math
 import torch
 import torch.nn.functional as F
 
+from detection.target_assigner import NEGATIVE_CLASS, IGNORE_CLASS
+
 
 def naive_sampler(predictions, target_classes):
-    return target_classes >= 0
+    return target_classes.ne(NEGATIVE_CLASS) & target_classes.ne(IGNORE_CLASS)
 
 def hard_negative_mining(predictions, target_classes, negative_per_positive_ratio, min_negative_per_image):
-    loss = -F.log_softmax(predictions, dim=-1)[:, :, 0]
+    loss = -F.log_softmax(predictions, dim=-1)[:, :, NEGATIVE_CLASS]
 
-    negative_mask = target_classes.eq(0)
-    positive_mask = target_classes.gt(0)
+    negative_mask = target_classes.eq(NEGATIVE_CLASS)
+    positive_mask = target_classes.ne(NEGATIVE_CLASS) & target_classes.ne(IGNORE_CLASS)
     num_negatives = negative_mask.sum(dim=1, keepdim=True)
     num_positives = positive_mask.sum(dim=1, keepdim=True)
 

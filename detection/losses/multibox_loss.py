@@ -58,11 +58,12 @@ class MultiboxLoss(nn.Module):
 
         if self.multiclass:
             class_target = torch.zeros_like(scores)
-            mask = target_classes != NEGATIVE_CLASS
+            mask = target_classes.ne(NEGATIVE_CLASS) & target_classes.ne(IGNORE_CLASS)
             class_target[mask, target_classes[mask] - 1] = target_scores[mask]
         elif self.soft_target:
             class_target = torch.zeros_like(scores)
-            class_target[torch.ones(class_target.size(0), dtype=torch.uint8, device=target.device), target_classes] = target_scores
+            mask = target_classes.ne(IGNORE_CLASS)
+            class_target[mask, target_classes[mask]] = target_scores[mask]
         else:
             class_target = target_classes.view(-1)
 
