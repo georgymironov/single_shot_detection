@@ -6,6 +6,7 @@ import numpy as np
 import tqdm
 
 from bf.datasets.detection_dataset import DetectionDataset
+from bf.training.env import get_out_file
 
 
 def _sanity_check(box):
@@ -28,7 +29,7 @@ class Txt(DetectionDataset):
 
         self.annotations = []
 
-        for path in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.txt'), recursive=True), desc=root):
+        for path in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.txt'), recursive=True), desc=root, file=get_out_file()):
             with open(path, 'r') as f:
                 boxes = []
                 for line in f.read().splitlines():

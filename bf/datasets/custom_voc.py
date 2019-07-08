@@ -7,6 +7,7 @@ import numpy as np
 import tqdm
 
 from bf.datasets.detection_dataset import DetectionDataset
+from bf.training.env import get_out_file
 from bf.utils import xml_utils
 
 
@@ -28,7 +29,7 @@ class CustomVoc(DetectionDataset):
 
         self.annotations = []
 
-        for annotation in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.xml'), recursive=True), desc=root):
+        for annotation in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.xml'), recursive=True), desc=root, file=get_out_file()):
             xmldict = xml_utils.XmlDictConfig(ElementTree.parse(annotation).getroot())
 
             width = int(xmldict['size']['width'])

@@ -1,7 +1,9 @@
+import atexit
 import functools
 import logging
 import os
 import random
+import sys
 
 import numpy as np
 import torch
@@ -38,6 +40,17 @@ def set_random_state(args, cfg):
     np.random.seed(cfg.seed)
     torch.manual_seed(cfg.seed)
     torch.cuda.manual_seed(cfg.seed)
+
+_null_file = None
+atexit.register(lambda: _null_file and _null_file.close())
+
+def get_out_file():
+    if is_master():
+        return sys.stderr
+    global _null_file
+    if not _null_file:
+        _null_file = open(os.devnull, 'w')
+    return _null_file
 
 def set_device(args, cfg):
     use_cuda = not args.cpu and torch.cuda.is_available()
