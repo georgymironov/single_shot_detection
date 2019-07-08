@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from bf.modules import losses
 from bf.utils.misc_utils import get_ctor
-from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX, IGNORE_INDEX
+from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX, IGNORE_CLASS, NEGATIVE_CLASS
 
 
 class MultiboxLoss(nn.Module):
@@ -16,7 +16,7 @@ class MultiboxLoss(nn.Module):
         super(MultiboxLoss, self).__init__()
 
         ClassificationLoss = get_ctor(losses, classification_loss['name'])
-        self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=IGNORE_INDEX, **classification_loss)
+        self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=IGNORE_CLASS, **classification_loss)
         self.soft_target = getattr(self.classification_loss, 'SOFT_TARGET', False)
         self.multiclass = getattr(self.classification_loss, 'MULTICLASS', False)
 
@@ -49,7 +49,7 @@ class MultiboxLoss(nn.Module):
         scores = scores.view(batch_size, num_priors, -1)
         locs = locs.view(batch_size, num_priors, 4)
 
-        positive_mask = target_classes.gt(0)
+        positive_mask = target_classes.ne(NEGATIVE_CLASS) & target_classes.ne(IGNORE_CLASS)
         sampled_mask = self.sampler(scores, target_classes)
 
         scores = scores[sampled_mask]
@@ -58,7 +58,7 @@ class MultiboxLoss(nn.Module):
 
         if self.multiclass:
             class_target = torch.zeros_like(scores)
-            mask = target_classes != 0
+            mask = target_classes != NEGATIVE_CLASS
             class_target[mask, target_classes[mask] - 1] = target_scores[mask]
         elif self.soft_target:
             class_target = torch.zeros_like(scores)

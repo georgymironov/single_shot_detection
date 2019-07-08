@@ -1,6 +1,9 @@
 import torch
 
 
+NOT_MATCHED = -2
+IGNORE = -1
+
 def match_bipartite(weights, inplace=False):
     """
     Args:
@@ -43,8 +46,8 @@ def match_per_prediction(weights, matched_threshold, unmatched_threshold=None, f
     below_matched = overlap < matched_threshold
     below_unmatched = overlap < unmatched_threshold
 
-    box_idx[below_unmatched] = -2
-    box_idx[below_matched & ~below_unmatched] = -1
+    box_idx[below_unmatched] = NOT_MATCHED
+    box_idx[below_matched & ~below_unmatched] = IGNORE
 
     if force_match_for_each_target:
         anchor_idx = weights.argmax(dim=1)

@@ -13,6 +13,8 @@ CLASS_INDEX = 4
 SCORE_INDEX = 5
 DIFFICULT_INDEX = 6
 
+NEGATIVE_CLASS = 0
+
 
 class DetectionDataset(Dataset):
     def __getitem__(self, index):
