@@ -1,9 +1,11 @@
 import functools
 import logging
 
+import numpy as np
 import torch
 
 from bf.builders import base_builder
+from bf.datasets.detection_dataset import SCORE_INDEX
 from bf.utils.misc_utils import filter_kwargs
 
 import detection.sampler
@@ -16,26 +18,42 @@ from detection.target_assigner import TargetAssigner
 from detection.utils import model_fixer
 
 
+def mixup(x, y, alpha=None):
+    if not alpha:
+        return x, y
+    lam = np.random.beta(alpha, alpha)
+    index = np.random.permutation(x.size(0))
+    mix_x = lam * x + (1.0 - lam) * x[index]
+    mix_y = []
+    for i in range(len(y)):
+        original = y[i].clone()
+        original[..., SCORE_INDEX] *= lam
+        mixed = y[index[i]].clone()
+        mixed[..., SCORE_INDEX] *= (1.0 - lam)
+        mix_y.append(torch.cat([original, mixed], dim=0))
+    return mix_x, mix_y
+
 def init(device,
-         model_params,
-         box_coder_params,
-         postprocess_params,
-         loss_params,
-         sampler_params,
-         target_assigner_params,
+         model_args,
+         box_coder_args,
+         postprocess_args,
+         loss_args,
+         sampler_args,
+         target_assigner_args,
          state={},
          preprocess=None,
          parallel=False,
-         distributed=False):
+         distributed=False,
+         mixup_args={}):
     assert not (parallel and distributed)
 
     if 'model' in state:
         logging.info('===> Restoring model from checkpoint')
         detector = state['model']
         del state['model']
-    elif 'model' in model_params['detector']:
-        logging.info(f'===> Restoring model from file {model_params["detector"]["model"]}')
-        loaded = torch.load(model_params['detector']['model'], map_location='cpu')
+    elif 'model' in model_args['detector']:
+        logging.info(f'===> Restoring model from file {model_args["detector"]["model"]}')
+        loaded = torch.load(model_args['detector']['model'], map_location='cpu')
 
         if type(loaded) is dict and 'model' in loaded:
             detector = loaded['model']
@@ -44,15 +62,15 @@ def init(device,
         else:
             detector = loaded
     else:
-        base = base_builder.create_base(**model_params['base'])
+        base = base_builder.create_base(**model_args['base'])
         detector = filter_kwargs(detector_builder.build)(base,
-                                                         anchor_generator_params=model_params['anchor_generator'],
-                                                         **model_params['detector'])
+                                                         anchor_generator_params=model_args['anchor_generator'],
+                                                         **model_args['detector'])
 
-        if 'weight' in model_params['detector']:
-            logging.info(f'===> Loading model weights from file {model_params["detector"]["weight"]}')
+        if 'weight' in model_args['detector']:
+            logging.info(f'===> Loading model weights from file {model_args["detector"]["weight"]}')
             state_dict = detector.state_dict()
-            state_dict.update(torch.load(model_params['detector']['weight'], map_location='cpu'))
+            state_dict.update(torch.load(model_args['detector']['weight'], map_location='cpu'))
             state_dict = model_fixer.fix_weights(state_dict)
             detector.load_state_dict(state_dict)
 
@@ -78,14 +96,14 @@ def init(device,
 
     logging.info(detector)
 
-    sampler = getattr(detection.sampler, sampler_params['name'])
-    kwargs = {k: v for k, v in sampler_params.items() if k in sampler.__code__.co_varnames}
+    sampler = getattr(detection.sampler, sampler_args['name'])
+    kwargs = {k: v for k, v in sampler_args.items() if k in sampler.__code__.co_varnames}
     sampler = functools.partial(sampler, **kwargs)
 
-    criterion = MultiboxLoss(sampler=sampler, **loss_params)
-    box_coder = BoxCoder(**box_coder_params)
-    postprocessor = Postprocessor(box_coder, **postprocess_params)
-    target_assigner = TargetAssigner(box_coder, **target_assigner_params)
+    criterion = MultiboxLoss(sampler=sampler, **loss_args)
+    box_coder = BoxCoder(**box_coder_args)
+    postprocessor = Postprocessor(box_coder, **postprocess_args)
+    target_assigner = TargetAssigner(box_coder, **target_assigner_args)
 
     detector_wrapper = DetectorWrapper(detector, preprocess, postprocessor)
 
@@ -99,6 +117,8 @@ def init(device,
     def step_fn(step, phase, batch, state):
         imgs, ground_truth = batch
         imgs = imgs.to(device)
+
+        imgs, ground_truth = mixup(imgs, ground_truth, **mixup_args)
 
         *prediction, priors = detector(imgs)
 

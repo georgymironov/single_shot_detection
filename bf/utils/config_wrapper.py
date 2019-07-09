@@ -10,7 +10,7 @@ class ConfigWrapper(object):
         self.formatter.update_context(ctx)
 
     def __getattr__(self, name):
-        return getattr(self.config, name, None)
+        return getattr(self.config, name, {})
 
     def is_voc(self, phase):
         return self.config.dataset.get(phase, {}).get('name', None) == 'Voc'

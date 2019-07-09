@@ -9,7 +9,7 @@ colors = {}
 
 def display(img, target):
     if isinstance(img, torch.Tensor):
-        img = img.numpy().transpose((1, 2, 0))
+        img = img.detach().cpu().numpy().transpose((1, 2, 0))
     if img.dtype == 'float32':
         img = (img * 255).astype('uint8')
     img = np.ascontiguousarray(img)

@@ -41,16 +41,17 @@ def main(args):
             cfg.model['detector']['num_classes'] = datasets['train'].num_classes if 'train' in args.phases else datasets['eval'].num_classes
 
     detector, init_epoch_state_fn, step_fn = init_detection(device=device,
-                                                            model_params=cfg.model,
-                                                            box_coder_params=cfg.box_coder,
-                                                            postprocess_params=cfg.postprocess,
-                                                            sampler_params=cfg.sampler,
-                                                            loss_params=cfg.loss,
-                                                            target_assigner_params=cfg.target_assigner,
+                                                            model_args=cfg.model,
+                                                            box_coder_args=cfg.box_coder,
+                                                            postprocess_args=cfg.postprocess,
+                                                            sampler_args=cfg.sampler,
+                                                            loss_args=cfg.loss,
+                                                            target_assigner_args=cfg.target_assigner,
                                                             state=state,
                                                             preprocess=preprocess,
                                                             parallel=args.parallel,
-                                                            distributed=args.distributed)
+                                                            distributed=args.distributed,
+                                                            mixup_args=cfg.mixup)
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
