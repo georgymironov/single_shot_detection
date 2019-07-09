@@ -43,11 +43,11 @@ class SigmoidFocalLoss(_Loss):
         alpha_weight = target * self.alpha + (1.0 - target) * (1.0 - self.alpha)
 
         pb = torch.sigmoid(prediction)
-        pb = pb * target + (1 - pb) * (1.0 - target)
+        pb = pb * target + (1.0 - pb) * (1.0 - target)
 
         cross_entropy = F.binary_cross_entropy_with_logits(prediction, target, reduction='none')
 
-        loss = (alpha_weight * (1 - pb).pow(self.gamma) * cross_entropy).sum(dim=-1)
+        loss = (alpha_weight * (1.0 - pb).pow(self.gamma) * cross_entropy).sum(dim=-1)
 
         return self._reduce(loss)
 
@@ -66,11 +66,11 @@ class SoftmaxFocalLoss(_Loss):
         logpb = logpb[mask, target[mask]]
         pb = logpb.exp()
 
-        loss[mask] = -1 * (1 - pb).pow_(self.gamma).mul_(logpb)
+        loss[mask] = -1 * (1.0 - pb).pow_(self.gamma).mul_(logpb)
 
         if self.alpha is not None:
             alpha = torch.full_like(target, self.alpha, dtype=torch.float)
-            alpha[target == 0] = 1 - self.alpha
+            alpha[target == 0] = 1.0 - self.alpha
             loss.mul_(alpha)
 
         return self._reduce(loss)
@@ -86,7 +86,9 @@ class CrossEntropyWithSoftTargetsLoss(_Loss):
         if self.epsilon:
             target = self._soften(target)
 
-        loss = -1 * logpb.mul(target).sum(dim=-1)
+        scale = target.sum(dim=-1).mean().pow(-1)
+
+        loss = -1 * scale * logpb.mul(target).sum(dim=-1)
 
         return self._reduce(loss)
 
@@ -98,4 +100,7 @@ class BinaryCrossEntropyWithSoftTargetsLoss(_Loss):
         if self.epsilon:
             target = self._soften(target)
 
-        return F.binary_cross_entropy_with_logits(logits, target, reduction=self.reduction)
+        scale = target.mean(dim=-1)
+        scale = scale.sum().div(scale.gt(0).float().sum()).pow(-1)
+
+        return scale * F.binary_cross_entropy_with_logits(logits, target, reduction=self.reduction)
