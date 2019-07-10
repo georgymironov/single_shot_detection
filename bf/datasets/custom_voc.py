@@ -30,7 +30,7 @@ class CustomVoc(DetectionDataset):
         self.annotations = []
 
         for annotation in tqdm.tqdm(glob.glob(os.path.join(root, '**', '*.xml'), recursive=True), desc=root, file=get_out_file()):
-            xmldict = xml_utils.XmlDictConfig(ElementTree.parse(annotation).getroot())
+            xmldict = xml_utils.XmlDictConfig(ElementTree.parse(annotation, parser=ElementTree.XMLParser(encoding="utf-8")).getroot())
 
             width = int(xmldict['size']['width'])
             height = int(xmldict['size']['height'])
