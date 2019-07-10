@@ -18,14 +18,19 @@ from detection.target_assigner import TargetAssigner
 from detection.utils import model_fixer
 
 
-def mixup(x, y, alpha=None):
+def mixup(x, y, p=0.5, alpha=None):
     if not alpha:
         return x, y
     lam = np.random.beta(alpha, alpha)
     index = np.random.permutation(x.size(0))
-    mix_x = lam * x + (1.0 - lam) * x[index]
+    roll = torch.rand(x.size(0)) < p
+    mix_x = x.clone()
+    mix_x[roll] = lam * x[roll] + (1.0 - lam) * x[index][roll]
     mix_y = []
     for i in range(len(y)):
+        if not roll[i]:
+            mix_y.append(y[i])
+            continue
         original = y[i].clone()
         original[..., SCORE_INDEX] *= lam
         mixed = y[index[i]].clone()
