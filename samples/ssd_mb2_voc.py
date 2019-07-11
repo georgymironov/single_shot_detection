@@ -2,14 +2,15 @@ seed = 23
 
 model = {
     'base': {
-        'name': 'mobilenet_v2_10'
+        'name': 'torchvision_mobilenet_v2',
+        'pretrained': True
     },
     'detector': {
         'num_classes': 21,
         'use_depthwise': True,
         'features': {
             'name': 'Features',
-            'out_layers': ([13, 'expand_relu'], 18),
+            'out_layers': (13, 18),
         },
         'extras': {
             'layers': (('s', 512), ('s', 256), ('s', 256), ('s', 128))

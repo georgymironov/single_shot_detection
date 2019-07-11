@@ -1,5 +1,7 @@
 import functools
 
+from torchvision.models import mobilenet_v2 as torchvision_mobilenet_v2
+
 from torchvision.models import resnet18 as torchvision_resnet18
 from torchvision.models import resnet34 as torchvision_resnet34
 from torchvision.models import resnet50 as torchvision_resnet50
