@@ -4,9 +4,10 @@ import logging
 import torch
 import torch.nn as nn
 
+from bf.utils import torch_utils
+
 from . import criterions
 from .trace_inspector import TraceInspector
-from bf.utils import torch_utils
 
 
 def _is_depthwise_conv(module):
@@ -25,7 +26,7 @@ def _remove_depthwise_conv_channel(module, indexes):
 
     _mask_parameter(module, 'weight', mask)
     _mask_parameter(module, 'bias', mask)
-    _mask_parameter(module, 'mean_activation', mask)
+    _mask_parameter(module, 'pruning_criterion', mask)
 
     module.out_channels = module.in_channels = module.groups = module.out_channels - len(indexes)
 
@@ -35,7 +36,7 @@ def _remove_conv_out_channel(module, indexes):
 
     _mask_parameter(module, 'weight', mask)
     _mask_parameter(module, 'bias', mask)
-    _mask_parameter(module, 'mean_activation', mask)
+    _mask_parameter(module, 'pruning_criterion', mask)
 
     module.out_channels = module.out_channels - len(indexes)
 
@@ -61,16 +62,17 @@ def _remove_batchnorm_channel(module, indexes):
     module.num_features = module.num_features - len(indexes)
 
 class Pruner(object):
-    def __init__(self, model, include_paths=None, criterion='MinL1Norm', num=1):
+    def __init__(self, model, criterion, include_paths=None, num=1):
         self.num = num
         self.model = model
         self.modules = dict(torch_utils.get_leaf_modules(model))
         self.trace_inspector = TraceInspector(model)
-        self.criterion = getattr(criterions, criterion)(self.trace_inspector, include_paths)
+        self.criterion = getattr(criterions, criterion['name'])(self.trace_inspector, include_paths, **criterion.get('args', {}))
 
     def prune(self, paths=None):
         if not paths:
-            paths = self.criterion.get_path(self.num)
+            with torch.no_grad():
+                paths = self.criterion.get_path(self.num)
 
         logging.info('Pruning:')
 

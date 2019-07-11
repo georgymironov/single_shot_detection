@@ -1,10 +1,13 @@
 import logging
 import math
 import random
+from functools import partial
 from itertools import chain
 
 import torch
 import torch.nn as nn
+
+from ._hooks import _mean_activation_hook, _taylor_expansion_hook, _save_output_hook
 
 
 def _get_paths(modules, indexes):
@@ -72,7 +75,17 @@ class Critetion(object):
 
         return _weights
 
+    def _exclude_last_layer(self, weights, num):
+        for name, module in self.modules.items():
+            if module.out_channels <= num:
+                weights[name][weights[name].argmax()] = math.inf
+
     def _get_path_by_weights(self, weights, num):
+        if not weights:
+            return []
+
+        self._exclude_last_layer(weights, num)
+
         weights = self._share_connected(weights)
         modules = {name: self.included_modules[name] for name in weights.keys()}
 
@@ -86,7 +99,12 @@ class Critetion(object):
         return _get_paths(modules, indexes)
 
     def get_path(self, num=1):
-        raise NotImplementedError
+        weights = {
+            name: module.pruning_criterion.view(-1, 1)
+            for name, module in self.modules.items()
+            if hasattr(module, 'pruning_criterion')
+        }
+        return self._get_path_by_weights(weights, num)
 
 class RandomSampling(Critetion):
     def get_path(self, num=1):
@@ -97,9 +115,7 @@ class RandomSampling(Critetion):
 class MinL1Norm(Critetion):
     def get_path(self, num=1):
         norm = {
-            name: module.weight.abs().sum(dim=(1, 2, 3)).unsqueeze(1)
-                if module.out_channels > num
-                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
+            name: module.weight.abs().sum(dim=(1, 2, 3)).view(-1, 1)
             for name, module in self.modules.items()
         }
         return self._get_path_by_weights(norm, num)
@@ -107,27 +123,17 @@ class MinL1Norm(Critetion):
 class MinL2Norm(Critetion):
     def get_path(self, num=1):
         norm = {
-            name: module.weight.pow(2).sum(dim=(1, 2, 3)).sqrt().unsqueeze(1)
-                if module.out_channels > num
-                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
+            name: module.weight.pow(2).sum(dim=(1, 2, 3)).sqrt().view(-1, 1)
             for name, module in self.modules.items()
         }
         return self._get_path_by_weights(norm, num)
 
-class _mean_activation_hook:
-    def __init__(self, mean_activation):
-        self.num_steps = 0
-        self.mean_activation = mean_activation
+class _Activation(Critetion):
+    forward_hook = None
+    backward_hook = None
 
-    def __call__(self, module, input, output):
-        with torch.no_grad():
-            self.mean_activation *= self.num_steps / (self.num_steps + 1)
-            self.mean_activation += output.mean(dim=(0, 2, 3)) / (self.num_steps + 1)
-        self.num_steps += 1
-
-class MinActivation(Critetion):
     def __init__(self, *args, **kwargs):
-        super(MinActivation, self).__init__(*args, **kwargs)
+        super(_Activation, self).__init__(*args, **kwargs)
 
         self.activation_map = {}
         for name in self.included_modules.keys():
@@ -143,21 +149,19 @@ class MinActivation(Critetion):
 
         for name, module in self.model.named_modules():
             if name in self.activation_map:
+                module.register_forward_hook(_save_output_hook)
                 conv = self.modules[self.activation_map[name]]
-                if 'mean_activation' not in conv._buffers:
-                    conv.register_buffer('mean_activation', torch.zeros((conv.out_channels,), dtype=conv.weight.dtype, device=conv.weight.device))
-                module.register_forward_hook(_mean_activation_hook(conv.mean_activation))
+                if self.forward_hook:
+                    module.register_forward_hook(self.forward_hook(conv))
+                if self.backward_hook:
+                    module.register_backward_hook(self.backward_hook(conv))
 
-    def get_path(self, num=1):
-        activation = {
-            name: module.mean_activation.unsqueeze(1)
-                if module.out_channels > num
-                else torch.full((module.out_channels, 1), math.inf, dtype=module.weight.dtype, device=module.weight.device)
-            for name, module in self.modules.items()
-            if hasattr(module, 'mean_activation') and module.mean_activation.sum().ne(0)
-        }
+class MeanActivation(_Activation):
+    def __init__(self, *args, momentum=0.9, **kwargs):
+        self.forward_hook = partial(_mean_activation_hook, momentum=momentum)
+        super(MeanActivation, self).__init__(*args, **kwargs)
 
-        if not activation:
-            return []
-
-        return self._get_path_by_weights(activation, num)
+class TaylorExpansion(_Activation):
+    def __init__(self, *args, momentum=0.9, **kwargs):
+        self.backward_hook = partial(_taylor_expansion_hook, momentum=momentum)
+        super(TaylorExpansion, self).__init__(*args, **kwargs)
