@@ -2,10 +2,9 @@ import os
 
 import torch
 import torch.nn as nn
-
 import torchvision
 
-from bf import base as detection_base
+import bf.base
 
 
 class _resnet_wrapper(nn.Module):
@@ -58,9 +57,13 @@ class _senet_wrapper(nn.Module):
         return self.features(x)
 
 def create_base(name, weight=None, **model_args):
-    Base = getattr(detection_base, name)
-
-    base = Base(**model_args)
+    if name.startswith('torchhub://'):
+        name = name.replace('torchhub://', '')
+        repo, model = name.split(':')
+        base = torch.hub.load(repo, model, **model_args)
+    else:
+        Base = getattr(bf.base, name)
+        base = Base(**model_args)
 
     if isinstance(base, torchvision.models.ResNet):
         base = _resnet_wrapper(base)
