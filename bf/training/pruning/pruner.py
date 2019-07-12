@@ -74,7 +74,7 @@ class Pruner(object):
             with torch.no_grad():
                 paths = self.criterion.get_path(self.num)
 
-        logging.info('Pruning:')
+        logging.info('Pruned channels:')
 
         if not paths:
             logging.info('Nothing!')

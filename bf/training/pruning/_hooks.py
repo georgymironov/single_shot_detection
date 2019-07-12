@@ -5,18 +5,18 @@ def _save_output_hook(module, input, output):
     module.output = output.detach()
 
 class _moving_average_hook(object):
-    def __init__(self, module, momentum=0.9):
+    def __init__(self, pruned_module, momentum=0.9):
         self.momentum = momentum
-        self.module = module
+        self.pruned_module = pruned_module
 
-    def __call__(self, module, *args):
+    def __call__(self, gate_module, *args):
         with torch.no_grad():
-            value = self.get_value(module, *args)
-            if 'pruning_criterion' not in self.module._buffers:
-                self.module.register_buffer('pruning_criterion', value)
+            value = self.get_value(gate_module, *args)
+            if 'pruning_criterion' not in self.pruned_module._buffers:
+                self.pruned_module.register_buffer('pruning_criterion', value)
             else:
-                self.module.pruning_criterion *= self.momentum
-                self.module.pruning_criterion += (1.0 - self.momentum) * value
+                self.pruned_module.pruning_criterion *= self.momentum
+                self.pruned_module.pruning_criterion += (1.0 - self.momentum) * value
 
 class _mean_activation_hook(_moving_average_hook):
     def get_value(self, module, input, output):

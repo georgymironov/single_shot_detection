@@ -76,16 +76,16 @@ class Critetion(object):
         return _weights
 
     def _exclude_last_layer(self, weights, num):
-        for name, module in self.modules.items():
-            if module.out_channels <= num:
-                weights[name][weights[name].argmax()] = math.inf
+        for name, weight in weights.items():
+            if self.modules[name].out_channels <= num:
+                weight[weight.argmax()] = math.inf
 
     def _get_path_by_weights(self, weights, num):
         if not weights:
             return []
 
         self._exclude_last_layer(weights, num)
-
+    
         weights = self._share_connected(weights)
         modules = {name: self.included_modules[name] for name in weights.keys()}
 
@@ -93,18 +93,15 @@ class Critetion(object):
             assert self.included_modules[name].weight.size(0) == weight.size(0)
 
         weights = torch.cat(list(weights.values()))
-        _, indexes = torch.topk(weights, num, largest=False)
+        values, indexes = torch.topk(weights, num, largest=False)
+        logging.info(f'Pruned weights:')
+        logging.info(values)
         indexes = [x.item() for x in indexes]
 
         return _get_paths(modules, indexes)
 
     def get_path(self, num=1):
-        weights = {
-            name: module.pruning_criterion.view(-1, 1)
-            for name, module in self.modules.items()
-            if hasattr(module, 'pruning_criterion')
-        }
-        return self._get_path_by_weights(weights, num)
+        raise NotImplementedError
 
 class RandomSampling(Critetion):
     def get_path(self, num=1):
@@ -156,11 +153,20 @@ class _Activation(Critetion):
                 if self.backward_hook:
                     module.register_backward_hook(self.backward_hook(conv))
 
+    def get_path(self, num=1):
+        weights = {
+            name: module.pruning_criterion.view(-1, 1)
+            for name, module in self.modules.items()
+            if hasattr(module, 'pruning_criterion')
+        }
+        return self._get_path_by_weights(weights, num)
+
 class MeanActivation(_Activation):
     def __init__(self, *args, momentum=0.9, **kwargs):
         self.forward_hook = partial(_mean_activation_hook, momentum=momentum)
         super(MeanActivation, self).__init__(*args, **kwargs)
 
+# ref: https://arxiv.org/pdf/1611.06440.pdf
 class TaylorExpansion(_Activation):
     def __init__(self, *args, momentum=0.9, **kwargs):
         self.backward_hook = partial(_taylor_expansion_hook, momentum=momentum)
