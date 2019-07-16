@@ -47,6 +47,13 @@ def init_checkpoint(args):
     if checkpoint:
         logging.info(f'>> Restoring from {checkpoint}')
         state = torch.load(checkpoint, map_location='cpu')
+        if args.new_checkpoint:
+            new_state = {}
+            if 'model' in state:
+                new_state['model'] = state['model']
+            if 'model_dict' in state:
+                new_state['model_dict'] = state['model_dict']
+            state = new_state
         if 'model' in state:
             if args.load_weights:
                 del state['model']
@@ -137,11 +144,3 @@ def launch(args, main):
 
     else:
         main(args)
-
-def init_amp(args, model, optimizer):
-    try:
-        from apex import amp
-    except ImportError:
-        raise ImportError('Multiprecision training requires apex package installed.')
-
-    amp.initialize(model, optimizer, opt_level=args.amp_level)
