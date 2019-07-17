@@ -20,11 +20,14 @@ class Evaluator(object):
         self.step_fn = step_fn
         self.metrics = metrics
 
+        device = next(model.parameters()).device
+
         if event_emitter:
             self.event_emitter = event_emitter
         else:
             self.event_emitter = EventEmitter()
             callbacks.progress(self.event_emitter)
+            callbacks.to_device(self.event_emitter, device)
 
     def run(self, dataloader):
         start = time.time()
@@ -38,9 +41,10 @@ class Evaluator(object):
         predictions = []
 
         for step, batch in enumerate(dataloader):
-            self.event_emitter.emit('step_start', phase='train', step=step, state=state)
+            self.event_emitter.emit('step_start', phase='eval', step=step, batch=batch, state=state)
 
-            img, ground_truth = batch
+            batch = batch.get()
+            _, ground_truth = batch
 
             with torch.no_grad():
                 _, batch_prediction, state = self.step_fn(step, 'eval', batch, state)

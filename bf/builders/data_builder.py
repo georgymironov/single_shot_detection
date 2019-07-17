@@ -9,11 +9,12 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.sampler import RandomSampler, SequentialSampler
 
 import bf.datasets
+from bf.core.target_types import TargetTypes
 from bf.preprocessing import transforms
 from bf.utils.misc_utils import get_ctor
 
 
-def create_preprocessing(augmentations, preprocessing, input_size=None, transform_type='no_target'):
+def create_preprocessing(augmentations, preprocessing, input_size=None, transform_type=TargetTypes.NoTarget):
     augment = transforms.Compose(augmentations, transform_type=transform_type)
     preprocess = transforms.Compose(preprocessing, transform_type=transform_type)
 

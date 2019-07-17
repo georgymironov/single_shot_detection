@@ -1,9 +1,10 @@
 import logging
 
 from jpeg4py import JPEG
-import torch
 from torch.utils.data import Dataset
 
+from bf.core.batch_container import BatchContainer
+from bf.core.target_types import TargetTypes
 from bf.utils import image_utils
 
 
@@ -41,10 +42,7 @@ class DetectionDataset(Dataset):
 
     @staticmethod
     def collate(batch):
-        imgs, targets = zip(*batch)
-        imgs = torch.stack(imgs, dim=0)
-        targets = list(targets)
-        return imgs, targets
+        return BatchContainer(batch, TargetTypes.Boxes)
 
     def display(self, index):
         image_utils.display(*self[index])

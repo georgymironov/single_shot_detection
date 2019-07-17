@@ -1,5 +1,6 @@
 import random
 
+from bf.core.target_types import TargetTypes
 from bf.preprocessing import no_target, functional
 
 from . import transforms as _transforms
@@ -13,13 +14,13 @@ class Transform(object):
         raise NotImplementedError
 
 class DynamicTransform(object):
-    def __init__(self, transform_type='no_target'):
+    def __init__(self, transform_type=TargetTypes.NoTarget):
         self.set_target_type(transform_type)
 
     def set_target_type(self, transform_type):
-        if transform_type == 'box':
+        if transform_type == TargetTypes.Boxes:
             self.target_functional = functional.box_fn
-        elif transform_type == 'no_target':
+        elif transform_type == TargetTypes.NoTarget:
             self.target_functional = no_target
         else:
             raise ValueError(f'Unknown transform_type: {transform_type}')
@@ -46,8 +47,8 @@ class DynamicTransform(object):
         raise NotImplementedError
 
 class RandomDynamicTransform(DynamicTransform):
-    def __init__(self, p=.5):
-        super(RandomDynamicTransform, self).__init__()
+    def __init__(self, p=.5, **kwargs):
+        super(RandomDynamicTransform, self).__init__(**kwargs)
         self.p = p
 
     def __call__(self, sample):
@@ -78,7 +79,7 @@ class _ContainerContext(object):
         self.that.set_target_type(self.old)
 
 class TransformContainer(object):
-    def __init__(self, transforms, transform_type='no_target'):
+    def __init__(self, transforms, transform_type=TargetTypes.NoTarget):
         self.transforms = [getattr(_transforms, x['name'])(**x.get('args', {})) for x in transforms]
         self.transform_type = transform_type
         self.set_target_type(transform_type)

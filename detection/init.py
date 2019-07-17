@@ -1,11 +1,9 @@
 import functools
 import logging
 
-import numpy as np
 import torch
 
 from bf.builders import base_builder
-from bf.datasets.detection_dataset import SCORE_INDEX
 from bf.utils.misc_utils import filter_kwargs
 
 import detection.sampler
@@ -18,26 +16,6 @@ from detection.target_assigner import TargetAssigner
 from detection.utils import model_fixer
 
 
-def mixup(x, y, p=0.5, alpha=None):
-    if not alpha:
-        return x, y
-    lam = np.random.beta(alpha, alpha)
-    index = np.random.permutation(x.size(0))
-    roll = torch.rand(x.size(0)) < p
-    mix_x = x.clone()
-    mix_x[roll] = lam * x[roll] + (1.0 - lam) * x[index][roll]
-    mix_y = []
-    for i in range(len(y)):
-        if not roll[i]:
-            mix_y.append(y[i])
-            continue
-        original = y[i].clone()
-        original[..., SCORE_INDEX] *= lam
-        mixed = y[index[i]].clone()
-        mixed[..., SCORE_INDEX] *= (1.0 - lam)
-        mix_y.append(torch.cat([original, mixed], dim=0))
-    return mix_x, mix_y
-
 def init(device,
          model_args,
          box_coder_args,
@@ -48,8 +26,7 @@ def init(device,
          state={},
          preprocess=None,
          parallel=False,
-         distributed=False,
-         mixup_args={}):
+         distributed=False):
     assert not (parallel and distributed)
 
     if 'model' in state:
@@ -121,9 +98,6 @@ def init(device,
 
     def step_fn(step, phase, batch, state):
         imgs, ground_truth = batch
-        imgs = imgs.to(device)
-
-        imgs, ground_truth = mixup(imgs, ground_truth, **mixup_args)
 
         *prediction, priors = detector(imgs)
 

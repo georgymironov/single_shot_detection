@@ -39,7 +39,10 @@ class Trainer(object):
 
         self.event_emitter = EventEmitter()
 
+        device = next(model.parameters()).device
+
         callbacks.progress(self.event_emitter)
+        callbacks.to_device(self.event_emitter, device)
         callbacks.loss(self.event_emitter)
 
         self.evaluator = bf.eval.Evaluator(model,
@@ -73,10 +76,10 @@ class Trainer(object):
 
             if (step + 1) % self.accumulation_steps == 0:
                 self.state['global_step'] += 1
-                self.event_emitter.emit('step_start', phase='train', step=step, global_state=self.state, state=phase_state)
+                self.event_emitter.emit('step_start', phase='train', step=step, batch=batch, global_state=self.state, state=phase_state)
 
             with torch.enable_grad():
-                loss, _, phase_state = self.step_fn(step, 'train', batch, phase_state)
+                loss, _, phase_state = self.step_fn(step, 'train', batch.get(), phase_state)
 
             if (step + 1) % self.accumulation_steps == 0:
                 self.event_emitter.emit('step_end', phase='train', step=step, global_state=self.state, state=phase_state, loss=loss)

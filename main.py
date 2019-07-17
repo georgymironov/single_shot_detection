@@ -2,6 +2,7 @@ import functools
 
 import bf
 from bf.builders import train_builder, data_builder
+from bf.core.target_types import TargetTypes
 from bf.training import callbacks, env, helpers
 from bf.training.pruning.pruner import Pruner
 from bf.utils.video_viewer import VideoViewer
@@ -22,7 +23,7 @@ def main(args):
     env.set_random_state(args, cfg)
     device, use_cuda = env.set_device(args, cfg)
 
-    augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, 'box')
+    augment, preprocess = data_builder.create_preprocessing(cfg.augmentations, cfg.preprocessing, cfg.input_size, TargetTypes.Boxes)
 
     if 'train' in args.phases or 'eval' in args.phases:
         datasets = data_builder.create_datasets(cfg.dataset, augment=augment, preprocess=preprocess)
@@ -50,8 +51,7 @@ def main(args):
                                                             state=state,
                                                             preprocess=preprocess,
                                                             parallel=args.parallel,
-                                                            distributed=args.distributed,
-                                                            mixup_args=cfg.mixup)
+                                                            distributed=args.distributed)
 
     if 'eval' in args.phases:
         metrics = {'mAP': functools.partial(mean_average_precision,
@@ -96,6 +96,9 @@ def main(args):
             writer = callbacks.tensorboard(event_emitter, checkpoint_dir)
         else:
             writer = None
+
+        if 'mixup' in cfg.train:
+            callbacks.mixup(event_emitter, **cfg.train['mixup'])
 
         if 'scheduler' in cfg.train:
             scheduler = train_builder.create_scheduler(cfg.train['scheduler'], optimizer, state=state)

@@ -1,5 +1,6 @@
 import torch
 
+from bf.core.target_types import TargetTypes
 from bf.utils import onnx_exporter
 from bf.preprocessing.transforms import Resize
 
@@ -49,7 +50,7 @@ class DetectorWrapper(object):
         ratio_w = img.shape[1] / self.input_size[0]
         ratio_h = img.shape[0] / self.input_size[1]
 
-        with self.preprocess.context('no_target'):
+        with self.preprocess.context(TargetTypes.NoTarget):
             img = self.preprocess(img)
         assert img.dim() == 3
         img = img.unsqueeze(0)

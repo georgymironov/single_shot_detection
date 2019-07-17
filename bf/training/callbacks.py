@@ -145,3 +145,14 @@ def scheduler(event_emitter, scheduler_, run_scheduler_each_step, scheduler_metr
         def log_lr(global_state, **kwargs):
             for i, x in enumerate(global_state['optimizer'].param_groups):
                 writer.add_scalar(f'lr/learning_rate_{i}', x['lr'], global_state['global_step'])
+
+def to_device(event_emitter, device):
+    @event_emitter.on('step_start')
+    def _to_device(batch, **kwargs):
+        batch.to_(device)
+
+def mixup(event_emitter, alpha, p=0.5):
+    @event_emitter.on('step_start')
+    def _to_device(phase, batch, **kwargs):
+        if phase == 'train':
+            batch.mixup_(alpha, p)

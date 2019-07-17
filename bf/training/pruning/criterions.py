@@ -85,7 +85,7 @@ class Critetion(object):
             return []
 
         self._exclude_last_layer(weights, num)
-    
+
         weights = self._share_connected(weights)
         modules = {name: self.included_modules[name] for name in weights.keys()}
 
