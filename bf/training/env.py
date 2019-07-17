@@ -77,3 +77,19 @@ def set_device(args, cfg):
         cfg.update({'num_gpus': num_gpus})
 
     return device, use_cuda
+
+_amp = False
+
+def is_amp():
+    global _amp
+    return _amp
+
+def init_amp(args, model, optimizer):
+    try:
+        from apex import amp
+    except ImportError:
+        raise ImportError('Multiprecision training requires apex package installed.')
+
+    global _amp
+    _amp = True
+    amp.initialize(model, optimizer, opt_level=args.amp_level)

@@ -1,5 +1,3 @@
-import types
-
 from torch.utils.data import Dataset as TorchDataset
 from torch.utils.data import ConcatDataset as TorchConcatDataset
 

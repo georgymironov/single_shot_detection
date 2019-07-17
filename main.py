@@ -75,7 +75,7 @@ def main(args):
         optimizer = train_builder.create_optimizer(detector.model, cfg.train['optimizer'], state=state)
 
         if args.amp:
-            helpers.init_amp(args, detector.model, optimizer)
+            env.init_amp(args, detector.model, optimizer)
 
         trainer = bf.train.Trainer(cfg.train['epochs'],
                                    args.phases,
@@ -88,9 +88,7 @@ def main(args):
 
         event_emitter = trainer.event_emitter
 
-        callbacks.loss(event_emitter, amp=args.amp)
         callbacks.optimizer(event_emitter, optimizer)
-        callbacks.progress(event_emitter)
         callbacks.checkpoint(event_emitter, checkpoint_dir, save_every=cfg.train.get('eval_every', 1))
         callbacks.csv_logger(event_emitter, csv_log_path=helpers.get_csv_log_file(args, checkpoint_dir))
 
@@ -117,7 +115,6 @@ def main(args):
 
     elif 'eval' in args.phases:
         evaluator = bf.eval.Evaluator(detector.model, init_epoch_state_fn, step_fn, metrics=metrics)
-        callbacks.progress(evaluator.event_emitter)
         evaluator.run(dataloaders['eval'])
 
     if 'test' in args.phases:

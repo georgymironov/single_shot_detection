@@ -27,16 +27,16 @@ def optimizer(event_emitter, optimizer):
         if phase == 'train':
             global_state['optimizer_dict'] = optimizer.state_dict()
 
-def loss(event_emitter, amp=False):
+def loss(event_emitter):
     @event_emitter.on('step_end')
     def update_loss(phase, global_state=None, loss=None, **kwargs):
         if phase == 'train':
-            if amp:
+            if env.is_amp():
                 try:
-                    from apex import amp as apex_amp
+                    from apex import amp
                 except ImportError:
                     raise ImportError('Multiprecision training requires apex package installed.')
-                with apex_amp.scale_loss(loss, global_state['optimizer']) as scaled_loss:
+                with amp.scale_loss(loss, global_state['optimizer']) as scaled_loss:
                     scaled_loss.backward()
             else:
                 loss.backward()

@@ -5,6 +5,7 @@ import torch
 import torch.distributed as dist
 
 import bf.eval
+from bf.training import callbacks
 from bf.utils.event_emitter import EventEmitter
 
 
@@ -37,6 +38,9 @@ class Trainer(object):
             self.state['model'] = model
 
         self.event_emitter = EventEmitter()
+
+        callbacks.progress(self.event_emitter)
+        callbacks.loss(self.event_emitter)
 
         self.evaluator = bf.eval.Evaluator(model,
                                            init_epoch_state_fn,
