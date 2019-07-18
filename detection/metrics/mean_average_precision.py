@@ -56,9 +56,9 @@ def mean_average_precision(predictions, gts, class_labels, iou_threshold, voc=Fa
             false_positive[class_index][-1] += 1
             continue
 
-        jaccard = box_utils.jaccard(box.unsqueeze(0), gt_grouped[id_][class_index][:, det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]).squeeze_(0)
-        iou, index = jaccard.max(dim=0)
-        if iou.item() > iou_threshold:
+        iou = box_utils.iou(box.unsqueeze(0), gt_grouped[id_][class_index][:, det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]).squeeze_(0)
+        value, index = iou.max(dim=0)
+        if value > iou_threshold:
             if not ignore_difficult or gt_grouped[id_][class_index][index, det_ds.DIFFICULT_INDEX] == 0:
                 if index.item() not in matched[id_][class_index]:
                     true_positive[class_index][-1] += 1

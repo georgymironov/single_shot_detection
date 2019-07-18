@@ -66,14 +66,14 @@ class box(object):
         region = np.array([xmin, ymin, xmin + width - 1, ymin + height - 1], dtype=np.float32)
         new_target = target.copy()
         new_target[:, :4] = box_utils.intersection(region[np.newaxis], target[:, :4], zero_incorrect=True).squeeze()
-        jaccard = box_utils.jaccard(target[:, :4], new_target[:, :4], cartesian=False)
+        iou = box_utils.iou(target[:, :4], new_target[:, :4], cartesian=False)
 
-        if jaccard.max() > min_iou:
+        if iou.max() > min_iou:
             if keep_criterion == 'center_point':
                 center = (target[..., :2] + target[..., 2:4]) / 2
                 new_target = new_target[np.logical_and(center > region[:2], center < region[2:]).all(axis=1)]
             elif keep_criterion == 'iou':
-                new_target = new_target[jaccard > min_iou]
+                new_target = new_target[iou > min_iou]
             else:
                 raise ValueError(f'Wrong value for keep_criterion: {keep_criterion}')
 

@@ -80,7 +80,7 @@ def intersection(a, b, cartesian=True, zero_incorrect=False):
     return intersection
 
 @to_torch
-def jaccard(a, b, cartesian=True):
+def iou(a, b, cartesian=True):
     """
     Note: Boxes should have minmax format
     Args:
@@ -88,7 +88,7 @@ def jaccard(a, b, cartesian=True):
         b: torch.tensor(:shape [BoxesB, 4])
         cartesian: bool
     Returns:
-        jaccard: torch.tensor(:shape [BoxesA, BoxesB])
+        iou: torch.tensor(:shape [BoxesA, BoxesB])
     """
     intersection_area = area(intersection(a, b, cartesian=cartesian))
     area_a = area(a)

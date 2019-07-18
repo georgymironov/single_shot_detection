@@ -45,7 +45,7 @@ class TargetAssigner(object):
                 continue
 
             gt_boxes = gt[:, det_ds.LOC_INDEX_START:det_ds.LOC_INDEX_END]
-            weights = box_utils.jaccard(gt_boxes, corner_anchors)
+            weights = box_utils.iou(gt_boxes, corner_anchors)
 
             box_idx = matcher.match_per_prediction(weights, self.matched_threshold, self.unmatched_threshold)
             matched = box_idx.ne(matcher.NOT_MATCHED) & box_idx.ne(matcher.IGNORE)
