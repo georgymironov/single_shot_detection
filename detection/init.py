@@ -82,10 +82,10 @@ def init(device,
     kwargs = {k: v for k, v in sampler_args.items() if k in sampler.__code__.co_varnames}
     sampler = functools.partial(sampler, **kwargs)
 
-    criterion = MultiboxLoss(sampler=sampler, **loss_args)
     box_coder = BoxCoder(**box_coder_args)
+    criterion = MultiboxLoss(sampler=sampler, box_coder=box_coder, **loss_args)
     postprocessor = Postprocessor(box_coder, **postprocess_args)
-    target_assigner = TargetAssigner(box_coder, **target_assigner_args)
+    target_assigner = TargetAssigner(**target_assigner_args)
 
     detector_wrapper = DetectorWrapper(detector, preprocess, postprocessor)
 
@@ -104,7 +104,7 @@ def init(device,
         target = target_assigner.encode_ground_truth(ground_truth, priors)
         target = target.to(device)
 
-        loss, class_loss, loc_loss = criterion(prediction, target)
+        loss, class_loss, loc_loss = criterion(prediction, priors.to(device), target)
 
         prediction = [x.detach() for x in prediction]
 

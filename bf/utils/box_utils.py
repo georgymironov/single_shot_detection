@@ -100,6 +100,48 @@ def iou(a, b, cartesian=True):
 
     return intersection_area / (area_a + area_b - intersection_area)
 
+# ref: https://arxiv.org/pdf/1902.09630v2.pdf
+def generalized_iou(a, b, cartesian=True):
+    """
+    Note: Boxes should have minmax format
+    Args:
+        a: torch.tensor(:shape [BoxesA, 4])
+        b: torch.tensor(:shape [BoxesB, 4])
+        cartesian: bool
+    Returns:
+        iou: torch.tensor(:shape [BoxesA, BoxesB])
+    """
+    assert a.dim() == b.dim() == 2
+    assert a.size(1) == b.size(1) == 4
+
+    intersection_area = area(intersection(a, b, cartesian=cartesian))
+    area_a = area(a)
+    area_b = area(b)
+
+    if cartesian:
+        area_a = area_a.unsqueeze(1).expand_as(intersection_area)
+        area_b = area_b.unsqueeze(0).expand_as(intersection_area)
+
+    union_area = area_a + area_b - intersection_area
+
+    if cartesian:
+        min_ = torch.min(
+            a[:, :2].unsqueeze(1).expand((a.size(0), b.size(0), 2)),
+            b[:, :2].unsqueeze(0).expand((a.size(0), b.size(0), 2))
+        )
+        max_ = torch.max(
+            a[:, 2:].unsqueeze(1).expand((a.size(0), b.size(0), 2)),
+            b[:, 2:].unsqueeze(0).expand((a.size(0), b.size(0), 2))
+        )
+    else:
+        assert a.size() == b.size()
+        min_ = torch.min(a[..., :2], b[..., :2])
+        max_ = torch.max(a[..., 2:], b[..., 2:])
+
+    enclosing_area = area(torch.cat([min_, max_], dim=-1))
+
+    return intersection_area / union_area - (enclosing_area - union_area) / enclosing_area
+
 def _soft_nms(boxes, scores, score_threshold, sigma=0.5):
     scores_copy = scores.clone()
     mask = scores > score_threshold

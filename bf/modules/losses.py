@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.modules.loss import *
 
+from bf.utils import box_utils
+
 
 class _Loss(nn.Module):
     def __init__(self, reduction='mean', epsilon=0.0):
@@ -80,14 +82,12 @@ class CrossEntropyWithSoftTargetsLoss(_Loss):
 
     def forward(self, logits, target):
         loss = torch.zeros(target.size(0), dtype=torch.float32, device=target.device)
-
         logpb = F.log_softmax(logits, dim=-1)
 
         if self.epsilon:
             target = self._soften(target)
 
         scale = target.sum(dim=-1).mean().pow(-1)
-
         loss = -1 * scale * logpb.mul(target).sum(dim=-1)
 
         return self._reduce(loss)
@@ -104,3 +104,11 @@ class BinaryCrossEntropyWithSoftTargetsLoss(_Loss):
         scale = scale.sum().div(scale.gt(0).float().sum()).pow(-1)
 
         return scale * F.binary_cross_entropy_with_logits(logits, target, reduction=self.reduction)
+
+# ref: https://arxiv.org/pdf/1902.09630v2.pdf
+class GeneralizedIoULoss(_Loss):
+    IOU_LOSS = True
+
+    def forward(self, boxes, target):
+        loss = 1.0 - box_utils.generalized_iou(boxes, target, cartesian=False)
+        return self._reduce(loss)

@@ -33,7 +33,7 @@ class BoxCoder(torch.jit.ScriptModule):
                 (boxes[..., :2] - priors[..., :2]) / priors[..., 2:] * self.xy_scale,
                 torch.log((boxes[..., 2:] + self.eps) / priors[..., 2:]) * self.wh_scale], dim=-1)
 
-    @torch.jit.script_method
+    # @torch.jit.script_method
     def decode_box(self, boxes, priors, inplace=torch.tensor(0)):
         """
         Args:

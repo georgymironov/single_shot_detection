@@ -2,18 +2,23 @@ import torch
 import torch.nn as nn
 
 from bf.modules import losses
+from bf.utils import box_utils
 from bf.utils.misc_utils import get_ctor
 from detection.target_assigner import LOC_INDEX_START, LOC_INDEX_END, CLASS_INDEX, SCORE_INDEX, IGNORE_CLASS, NEGATIVE_CLASS
 
 
 class MultiboxLoss(nn.Module):
     def __init__(self,
+                 sampler,
+                 box_coder,
                  classification_loss,
                  localization_loss,
-                 sampler,
                  classification_weight=1.0,
                  localization_weight=1.0):
         super(MultiboxLoss, self).__init__()
+
+        self.sampler = sampler
+        self.box_coder = box_coder
 
         ClassificationLoss = get_ctor(losses, classification_loss['name'])
         self.classification_loss = ClassificationLoss(reduction='sum', ignore_index=IGNORE_CLASS, **classification_loss)
@@ -22,12 +27,12 @@ class MultiboxLoss(nn.Module):
 
         LocalizationLoss = get_ctor(losses, localization_loss['name'])
         self.localization_loss = LocalizationLoss(reduction='sum', **localization_loss)
+        self.iou_loss = getattr(self.localization_loss, 'IOU_LOSS', False)
 
         self.classification_weight = classification_weight
         self.localization_weight = localization_weight
-        self.sampler = sampler
 
-    def forward(self, pred, target):
+    def forward(self, pred, anchors, target):
         """
         Args:
             pred: tuple of
@@ -68,6 +73,13 @@ class MultiboxLoss(nn.Module):
             class_target = target_classes.view(-1)
 
         class_loss = self.classification_loss(scores, class_target)
+
+        if self.iou_loss:
+            locs = self.box_coder.decode_box(locs, anchors)
+            locs = box_utils.to_corners(locs)
+        else:
+            box_utils.to_centroids(target_locs, inplace=True)
+            self.box_coder.encode_box(target_locs, anchors, inplace=True)
 
         positive_locs = locs[positive_mask].view(-1, 4)
         positive_target_locs = target_locs[positive_mask].view(-1, 4)

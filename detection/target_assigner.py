@@ -15,8 +15,7 @@ IGNORE_CLASS = -1
 
 
 class TargetAssigner(object):
-    def __init__(self, box_coder, matched_threshold, unmatched_threshold):
-        self.box_coder = box_coder
+    def __init__(self, matched_threshold, unmatched_threshold):
         self.matched_threshold = matched_threshold
         self.unmatched_threshold = unmatched_threshold
 
@@ -57,9 +56,6 @@ class TargetAssigner(object):
             ingored = box_idx.eq(IGNORE_CLASS)
             target[i, ingored, CLASS_INDEX] = IGNORE_CLASS
             target[i, ingored, SCORE_INDEX] = IGNORE_CLASS
-
-        box_utils.to_centroids(target[..., LOC_INDEX_START:LOC_INDEX_END], inplace=True)
-        self.box_coder.encode_box(target[..., LOC_INDEX_START:LOC_INDEX_END], anchors, inplace=True)
 
         positive = target[..., CLASS_INDEX].ne(NEGATIVE_CLASS) & target[..., CLASS_INDEX].ne(IGNORE_CLASS)
         assert not torch.isnan(target[..., LOC_INDEX_START:LOC_INDEX_END][positive]).any().item()
