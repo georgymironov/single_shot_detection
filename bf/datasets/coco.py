@@ -74,6 +74,7 @@ class Coco(DetectionDataset):
                         max(box[1], 0.),
                         min(box[0] + box[2], a['width'] - 1.),
                         min(box[1] + box[3], a['height'] - 1.),
-                        box[4]
+                        box[4],
+                        box[5]
                     ])
             a['boxes'] = np.array(boxes, dtype=np.float32)
