@@ -51,8 +51,17 @@ def init(device,
 
         if 'weight' in model_args['detector']:
             logging.info(f'===> Loading model weights from file {model_args["detector"]["weight"]}')
+            loaded = torch.load(model_args['detector']['weight'], map_location='cpu')
+
+            if type(loaded) is dict and 'model_dict' in loaded:
+                model_dict = loaded['model_dict']
+                del loaded['model']
+                del loaded
+            else:
+                model_dict = loaded
+
             state_dict = detector.state_dict()
-            state_dict.update(torch.load(model_args['detector']['weight'], map_location='cpu'))
+            state_dict.update(model_dict)
             state_dict = model_fixer.fix_weights(state_dict)
             detector.load_state_dict(state_dict)
 
@@ -98,6 +107,7 @@ def init(device,
 
     def step_fn(step, phase, batch, state):
         imgs, ground_truth = batch
+        imgs = imgs.to(device)
 
         *prediction, priors = detector(imgs)
 
