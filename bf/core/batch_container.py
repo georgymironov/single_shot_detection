@@ -44,5 +44,13 @@ class BatchContainer(object):
 
         return self
 
+    def pin_memory(self):
+        self.imgs = self.imgs.pin_memory()
+
+        if self.target_type == TargetTypes.Boxes:
+            self.targets = [t.pin_memory() for t in self.targets]
+
+        return self
+
     def get(self):
         return self.imgs, self.targets
