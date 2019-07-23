@@ -2,7 +2,8 @@ seed = 23
 
 model = {
     'base': {
-        'name': 'mobilenet_v2_10'
+        'name': 'torchvision_mobilenet_v2',
+        'pretrained': True
     },
     'detector': {
         'num_classes': 81,
