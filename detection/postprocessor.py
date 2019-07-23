@@ -36,6 +36,9 @@ class Postprocessor(object):
         batch_size = b_scores.size(0)
         num_priors = priors.size(0)
 
+        b_scores = b_scores.float()
+        b_boxes = b_boxes.float()
+
         b_scores = b_scores.view(batch_size, num_priors, -1)
         b_scores = self.score_converter_fn(b_scores)
         num_classes = b_scores.size(-1)
